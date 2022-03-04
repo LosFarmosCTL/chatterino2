@@ -196,6 +196,7 @@ SOURCES += \
     src/providers/bttv/LoadBttvChannelEmote.cpp \
     src/providers/chatterino/ChatterinoBadges.cpp \
     src/providers/colors/ColorProvider.cpp \
+    src/providers/dankerino/DankerinoBadges.cpp \
     src/providers/emoji/Emojis.cpp \
     src/providers/ffz/FfzBadges.cpp \
     src/providers/ffz/FfzEmotes.cpp \
@@ -209,6 +210,8 @@ SOURCES += \
     src/providers/irc/IrcServer.cpp \
     src/providers/IvrApi.cpp \
     src/providers/LinkResolver.cpp \
+    src/providers/seventv/SeventvBadges.cpp \
+    src/providers/seventv/SeventvEmotes.cpp \
     src/providers/twitch/api/Helix.cpp \
     src/providers/twitch/ChannelPointReward.cpp \
     src/providers/twitch/IrcMessageHandler.cpp \
@@ -279,6 +282,7 @@ SOURCES += \
     src/widgets/dialogs/SelectChannelDialog.cpp \
     src/widgets/dialogs/SelectChannelFiltersDialog.cpp \
     src/widgets/dialogs/SettingsDialog.cpp \
+    src/widgets/dialogs/StreamSettingsDialog.cpp \
     src/widgets/dialogs/switcher/NewTabItem.cpp \
     src/widgets/dialogs/switcher/QuickSwitcherModel.cpp \
     src/widgets/dialogs/switcher/QuickSwitcherPopup.cpp \
@@ -313,6 +317,7 @@ SOURCES += \
     src/widgets/settingspages/AboutPage.cpp \
     src/widgets/settingspages/AccountsPage.cpp \
     src/widgets/settingspages/CommandPage.cpp \
+    src/widgets/settingspages/DankerinoPage.cpp \
     src/widgets/settingspages/ExternalToolsPage.cpp \
     src/widgets/settingspages/FiltersPage.cpp \
     src/widgets/settingspages/GeneralPage.cpp \
@@ -440,6 +445,7 @@ HEADERS += \
     src/providers/bttv/LoadBttvChannelEmote.hpp \
     src/providers/chatterino/ChatterinoBadges.hpp \
     src/providers/colors/ColorProvider.hpp \
+    src/providers/dankerino/DankerinoBadges.hpp \
     src/providers/emoji/Emojis.hpp \
     src/providers/ffz/FfzBadges.hpp \
     src/providers/ffz/FfzEmotes.hpp \
@@ -453,6 +459,8 @@ HEADERS += \
     src/providers/irc/IrcServer.hpp \
     src/providers/IvrApi.hpp \
     src/providers/LinkResolver.hpp \
+    src/providers/seventv/SeventvBadges.hpp \
+    src/providers/seventv/SeventvEmotes.hpp \
     src/providers/twitch/api/Helix.hpp \
     src/providers/twitch/ChannelPointReward.hpp \
     src/providers/twitch/ChatterinoWebSocketppLogger.hpp \
@@ -546,6 +554,7 @@ HEADERS += \
     src/widgets/dialogs/SelectChannelDialog.hpp \
     src/widgets/dialogs/SelectChannelFiltersDialog.hpp \
     src/widgets/dialogs/SettingsDialog.hpp \
+    src/widgets/dialogs/StreamSettingsDialog.hpp \
     src/widgets/dialogs/switcher/AbstractSwitcherItem.hpp \
     src/widgets/dialogs/switcher/NewTabItem.hpp \
     src/widgets/dialogs/switcher/QuickSwitcherModel.hpp \
@@ -583,6 +592,7 @@ HEADERS += \
     src/widgets/settingspages/AboutPage.hpp \
     src/widgets/settingspages/AccountsPage.hpp \
     src/widgets/settingspages/CommandPage.hpp \
+    src/widgets/settingspages/DankerinoPage.hpp \
     src/widgets/settingspages/ExternalToolsPage.hpp \
     src/widgets/settingspages/FiltersPage.hpp \
     src/widgets/settingspages/GeneralPage.hpp \
@@ -614,6 +624,7 @@ DISTFILES +=
 
 FORMS += \
     src/widgets/dialogs/IrcConnectionEditor.ui \
+    src/widgets/dialogs/StreamSettingsDialog.ui \
     src/widgets/dialogs/EditHotkeyDialog.ui  
 
 # do not use windows min/max macros

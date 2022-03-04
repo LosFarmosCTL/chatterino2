@@ -137,6 +137,27 @@ struct HelixGame {
     }
 };
 
+struct HelixTag {
+    QString id;
+    bool isAuto;
+    QString englishName;
+    QString englishDescription;
+    // TODO: If chatterino gets localization, make this a map<qstring, qstring>
+    explicit HelixTag(QJsonObject jsonObject)
+        : id(jsonObject.value("tag_id").toString())
+        , isAuto(jsonObject.value("is_auto").toBool())
+        , englishName(jsonObject.value("localization_names")
+                          .toObject()
+                          .value("en-us")
+                          .toString())
+        , englishDescription(jsonObject.value("localization_descriptions")
+                                 .toObject()
+                                 .value("en-us")
+                                 .toString())
+    {
+    }
+};
+
 struct HelixClip {
     QString id;  // clip slug
     QString editUrl;
@@ -358,6 +379,21 @@ public:
     void fetchGames(QStringList gameIds, QStringList gameNames,
                     ResultCallback<std::vector<HelixGame>> successCallback,
                     HelixFailureCallback failureCallback);
+
+    void updateStreamTags(QString broadcasterId, QStringList tags,
+                          std::function<void()> successCallback,
+                          HelixFailureCallback failureCallback);
+
+    void getStreamTags(QString broadcasterId,
+                       ResultCallback<std::vector<HelixTag>> successCallback,
+                       HelixFailureCallback failureCallback);
+
+    void getAllStreamTags(ResultCallback<std::vector<HelixTag>> successCallback,
+                          HelixFailureCallback failureCallback);
+    void fetchStreamTags(
+        QString after,
+        ResultCallback<std::vector<HelixTag>, QString> successCallback,
+        HelixFailureCallback failureCallback);
 
     // https://dev.twitch.tv/docs/api/reference#search-categories
     void searchGames(QString gameName,

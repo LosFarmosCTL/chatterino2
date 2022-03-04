@@ -162,6 +162,7 @@ AboutPage::AboutPage()
             l.emplace<QLabel>("Google emojis provided by <a href=\"https://google.com\">Google</a>")->setOpenExternalLinks(true);
             l.emplace<QLabel>("Emoji datasource provided by <a href=\"https://www.iamcal.com/\">Cal Henderson</a>"
                               "(<a href=\"https://github.com/iamcal/emoji-data/blob/master/LICENSE\">show license</a>)")->setOpenExternalLinks(true);
+            l.emplace<QLabel>("GraphQL Logo is licensed under <a href=\"https://github.com/graphql/graphql-spec/issues/398#issuecomment-426844088\">CC-BY-4.0</a>)")->setOpenExternalLinks(true);
             // clang-format on
         }
 
@@ -245,6 +246,15 @@ AboutPage::AboutPage()
 
     auto buildText = QString("Built with " + buildInfo.join(", "));
     layout.emplace<QLabel>(buildText);
+    auto advancedButton =
+        layout.emplace<QPushButton>("Enable advanced Dankerino settings");
+    QObject::connect(
+        advancedButton.getElement(), &QPushButton::clicked,
+        [bttn = advancedButton.getElement()] {
+            getSettings()->dankerinoThreeLetterApiEasterEgg.setValue(true);
+            bttn->setText("now restart your client");
+            bttn->setEnabled(false);
+        });
 
     layout->addStretch(1);
 }

@@ -82,6 +82,8 @@ public:
     QStringSetting lastMessageColor = {"/appearance/messages/lastMessageColor",
                                        "#7f2026"};
     BoolSetting showEmptyInput = {"/appearance/showEmptyInputBox", true};
+    BoolSetting showTextInputPlaceholder = {
+        "/appearance/showTextInputPlaceholder", true};
     BoolSetting showMessageLength = {"/appearance/messages/showMessageLength",
                                      false};
     BoolSetting separateMessages = {"/appearance/messages/separateMessages",
@@ -94,6 +96,8 @@ public:
         "/appearance/messages/hideDeletionActions", false};
     BoolSetting colorizeNicknames = {"/appearance/messages/colorizeNicknames",
                                      true};
+    BoolSetting colorizeNicknamesOnIrc = {
+        "/appearance/messages/colorizeNicknamesOnIrc", true};
     EnumSetting<UsernameDisplayMode> usernameDisplayMode = {
         "/appearance/messages/usernameDisplayMode",
         UsernameDisplayMode::UsernameAndLocalizedName};
@@ -107,6 +111,7 @@ public:
         "/appearance/messages/collapseMessagesMinLines", 0};
     BoolSetting alternateMessages = {
         "/appearance/messages/alternateMessageBackground", false};
+    BoolSetting grayOutRecents = {"/appearance/messages/gratOutRecents", true};
     FloatSetting boldScale = {"/appearance/boldScale", 63};
     BoolSetting showTabCloseButton = {"/appearance/showTabCloseButton", true};
     BoolSetting showTabLive = {"/appearance/showTabLiveButton", true};
@@ -131,6 +136,8 @@ public:
                                           -0.5f};
     // BoolSetting useCustomWindowFrame = {"/appearance/useCustomWindowFrame",
     // false};
+    BoolSetting legacyDankerinoRemoveSpacesBetweenEmotes_ = {
+        "/appearance/removeSpacesBetweenEmotes", false};
 
     // Badges
     BoolSetting showBadgesGlobalAuthority = {
@@ -143,6 +150,8 @@ public:
                                           true};
     BoolSetting showBadgesVanity = {"/appearance/badges/vanity", true};
     BoolSetting showBadgesChatterino = {"/appearance/badges/chatterino", true};
+    BoolSetting showBadgesDankerino = {"/appearance/badges/dankerino", true};
+    BoolSetting showBadgesSeventv = {"/appearance/badges/seventv", true};
     BoolSetting showBadgesFfz = {"/appearance/badges/ffz", true};
     BoolSetting useCustomFfzModeratorBadges = {
         "/appearance/badges/useCustomFfzModeratorBadges", true};
@@ -181,6 +190,7 @@ public:
     BoolSetting autorun = {"/behaviour/autorun", false};
     BoolSetting mentionUsersWithComma = {"/behaviour/mentionUsersWithComma",
                                          true};
+    BoolSetting lowercaseUsernames = {"/behaviour/lowercaseUsernames", false};
 
     /// Commands
     BoolSetting allowCommandsAtEnd = {"/commands/allowCommandsAtEnd", false};
@@ -197,6 +207,7 @@ public:
     BoolSetting stackBits = {"/emotes/stackBits", false};
     BoolSetting removeSpacesBetweenEmotes = {
         "/emotes/removeSpacesBetweenEmotes", false};
+    BoolSetting enableLoadingSevenTV = {"/emotes/enableLoadingSevenTV", false};
 
     /// Links
     BoolSetting linksDoubleClickOnly = {"/links/doubleClickToOpen", false};
@@ -425,8 +436,28 @@ public:
          {"d", 1},
          {"w", 1}}};
 
+    // more misc dankerino shit
+    IntSetting twitchHighRateLimitDelay = {
+        "/misc/twitch/highRateLimitDelay",
+        100,
+    };
+    IntSetting twitchLowRateLimitDelay = {
+        "/misc/twitch/lowRateLimitDelay",
+        1100,
+    };
+    BoolSetting abnormalNonceDetection = {"/misc/abnormalNonceDetection",
+                                          false};
+    BoolSetting normalNonceDetection = {"/misc/normalNonceDetection", false};
+    BoolSetting nonceFuckeryEnabled = {"/misc/nonceFuckeryEnabled", false};
+    QStringSetting webchatColor = {"/misc/webchatColor", "#3FFFA30B"};
+
+    BoolSetting dankerinoThreeLetterApiEasterEgg = {
+        "/misc/dankerinoThreeLetterApiEasterEgg", false};
+
 private:
+    BoolSetting nonceFuckeryMigrated_ = {"/misc/nonceFuckeryMigrated", false};
     void updateModerationActions();
+    void moveLegacyDankerinoSettings_();
 };
 
 }  // namespace chatterino

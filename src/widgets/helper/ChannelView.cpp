@@ -108,7 +108,11 @@ namespace {
                                 });
         };
 
-        if (creatorFlags.has(MessageElementFlag::BttvEmote))
+        if (creatorFlags.has(MessageElementFlag::SeventvEmote))
+        {
+            addPageLink("7TV");
+        }
+        else if (creatorFlags.has(MessageElementFlag::BttvEmote))
         {
             addPageLink("BTTV");
         }
@@ -1822,8 +1826,9 @@ void ChannelView::handleMouseClick(QMouseEvent *event,
                         getSettings()->mentionUsersWithComma;
                     const bool isFirstWord =
                         split && split->getInput().isEditFirstWord();
-                    auto userMention = formatUserMention(
-                        link.value, isFirstWord, commaMention);
+                    auto userMention =
+                        formatUserMention(link.value, isFirstWord, commaMention,
+                                          getSettings()->lowercaseUsernames);
                     insertText("@" + userMention + " ");
                     return;
                 }

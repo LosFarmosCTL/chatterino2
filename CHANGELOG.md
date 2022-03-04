@@ -1,6 +1,21 @@
 # Changelog
 
+
 ## Unversioned
+
+### Dankerino
+
+- Major: Add 7TV emotes from Chatterino7 (Mm2PL/Dankerino#79)
+- Minor: Move Dankerino settings to a separate tab (Mm2PL/Dankerino#84)
+- Minor: Add advanced IRC tag related settings (Mm2PL/Dankerino#86)
+- Minor: Allow for adjusting rate limit settings.
+- Minor: Webchat detection uses a customizable highlight now. (Mm2PL/Dankerino#90, Mm2PL/Dankerino#114)
+- Minor: Update 7TV code (Mm2pl/Dankerino#95)
+- Minor: Add Open in popup usercard menu option (Mm2PL/Dankerino#111)
+
+### Chatterino
+
+## 2.3.4
 
 - Major: Added customizable shortcuts. (#2340)
 - Minor: Make animated emote playback speed match browser (Firefox and Chrome) behaviour. (#3506)
@@ -172,6 +187,14 @@
 
 ## 2.3.2
 
+### Dankerino
+
+- Minor: Dankerino 'Remove spaces around emotes' setting was internally
+  replaced by Chatterino one. The config key was changed but the transition is
+  automatic (Mm2PL/Dankerino#65)
+
+### Chatterino
+
 - Major: New split for channels going live! /live. (#1797)
 - Minor: Added a message that displays a new date on new day. (#1016)
 - Minor: Hosting messages are now clickable. (#2655)
@@ -204,6 +227,22 @@
 - Bugfix: Handle new user messages ("rituals") properly. (#2703)
 
 ## 2.3.0
+
+### Dankerino
+
+- Minor: Add setting for chat placeholder text. (Mm2PL/dankerino#19)
+- Major: Add Dankerino badges
+- Major: Add /settitle (Mm2PL/chatterino2#8)
+- Major: Add /setgame (Mm2PL/chatterino2#9)
+- Major: Add GUI for /settitle, /setgame (Mm2PL/chatterino#11)
+- Major: Edit stream tags in GUI (Mm2PL/chatterino#12)
+- Major: Add support for Supibot AFKs in user cards (Mm2PL/dankerino#17)
+- Minor: Optionally remove spaces between emotes (Mm2PL/dankerino#53)
+- Minor: Split colorizing usernames on IRC and Twitch into two settings (Mm2PL/dankerino#56)
+- Minor: Add option to lowercase usernames (Mm2PL/dankerino#57)
+- Minor: Add support for joining parallel universes (Mm2PL/dankerino#58)
+
+### Chatterino
 
 - Major: Added custom FrankerFaceZ VIP Badges. (#2628)
 - Minor: Added `in:<channels>` search filter to find messages sent in specific channels. (#2299, #2634)

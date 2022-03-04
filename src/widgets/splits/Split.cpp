@@ -28,6 +28,7 @@
 #include "widgets/dialogs/QualityPopup.hpp"
 #include "widgets/dialogs/SelectChannelDialog.hpp"
 #include "widgets/dialogs/SelectChannelFiltersDialog.hpp"
+#include "widgets/dialogs/StreamSettingsDialog.hpp"
 #include "widgets/dialogs/UserInfoPopup.hpp"
 #include "widgets/helper/ChannelView.hpp"
 #include "widgets/helper/DebugPopup.hpp"
@@ -111,7 +112,6 @@ Split::Split(QWidget *parent)
         this->updateInputPlaceholder();
     });
     this->updateInputPlaceholder();
-
     this->view_->mouseDown.connect([this](QMouseEvent *) {
         this->giveFocus(Qt::MouseFocusReason);
     });
@@ -933,6 +933,13 @@ void Split::openInStreamlink()
     this->openChannelInStreamlink(this->getChannel()->getName());
 }
 
+void Split::openStreamSettingsEditor()
+{
+    auto dialog = new StreamSettingsDialog(this->getChannel());
+    dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+    dialog->exec();
+}
+
 void Split::openWithCustomScheme()
 {
     QString scheme = getSettings()->customURIScheme.getValue();
@@ -1154,6 +1161,7 @@ void Split::reloadChannelAndSubscriberEmotes()
 
     if (auto twitchChannel = dynamic_cast<TwitchChannel *>(channel.get()))
     {
+        twitchChannel->refresh7TVChannelEmotes(true);
         twitchChannel->refreshBTTVChannelEmotes(true);
         twitchChannel->refreshFFZChannelEmotes(true);
     }

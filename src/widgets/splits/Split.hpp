@@ -165,6 +165,7 @@ public slots:
     void openWhispersInBrowser();
     void openBrowserPlayer();
     void openInStreamlink();
+    void openStreamSettingsEditor();
     void openWithCustomScheme();
     void copyToClipboard();
     void startWatching();

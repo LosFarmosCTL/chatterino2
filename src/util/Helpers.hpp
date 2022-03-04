@@ -33,8 +33,9 @@ QColor getRandomColor(const QString &userId);
  * @param userName a user's name
  * @param isFirstWord signifies whether this mention would be the first word in a message
  * @param mentionUsersWithComma postfix mentions with a comma. generally powered by getSettings()->mentionUsersWithComma
+ * @param lowercaseUsernames [dankerino] lowercase the resulting string
  **/
 QString formatUserMention(const QString &userName, bool isFirstWord,
-                          bool mentionUsersWithComma);
+                          bool mentionUsersWithComma, bool lowercaseUsernames);
 
 }  // namespace chatterino

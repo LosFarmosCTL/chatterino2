@@ -81,13 +81,18 @@ QColor getRandomColor(const QString &userId)
 }
 
 QString formatUserMention(const QString &userName, bool isFirstWord,
-                          bool mentionUsersWithComma)
+                          bool mentionUsersWithComma, bool lowercaseUsernames)
 {
     QString result = userName;
 
     if (isFirstWord && mentionUsersWithComma)
     {
         result += ",";
+    }
+
+    if (lowercaseUsernames)
+    {
+        return result.toLower();
     }
 
     return result;

@@ -365,6 +365,8 @@ std::unique_ptr<QMenu> SplitHeader::createMainMenu()
 #endif
         menu->addAction(OPEN_IN_STREAMLINK, this->split_,
                         &Split::openInStreamlink);
+        menu->addAction(STREAM_SETTINGS_EDITOR, this->split_,
+                        &Split::openStreamSettingsEditor);
 
         if (!getSettings()->customURIScheme.getValue().isEmpty())
         {
@@ -936,6 +938,7 @@ void SplitHeader::reloadChannelEmotes()
 
     if (auto twitchChannel = dynamic_cast<TwitchChannel *>(channel.get()))
     {
+        twitchChannel->refresh7TVChannelEmotes(true);
         twitchChannel->refreshFFZChannelEmotes(true);
         twitchChannel->refreshBTTVChannelEmotes(true);
     }

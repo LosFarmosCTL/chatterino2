@@ -6,7 +6,9 @@
 #include "controllers/ignores/IgnorePhrase.hpp"
 #include "messages/Message.hpp"
 #include "providers/chatterino/ChatterinoBadges.hpp"
+#include "providers/dankerino/DankerinoBadges.hpp"
 #include "providers/ffz/FfzBadges.hpp"
+#include "providers/seventv/SeventvBadges.hpp"
 #include "providers/twitch/TwitchBadges.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
@@ -41,6 +43,23 @@ const QSet<QString> zeroWidthEmotes{
     "SoSnowy",  "IceCold",   "SantaHat", "TopHat",
     "ReinDeer", "CandyCane", "cvMask",   "cvHazmat",
 };
+
+bool isAbnormalNonce(const QString &nonce)
+{
+    // matches /[0-9a-f]{32}/
+    if (nonce.size() != 32)
+    {
+        return true;
+    }
+    for (const auto letter : nonce)
+    {
+        if (('0' > letter || letter > '9') && ('a' > letter || letter > 'f'))
+        {
+            return true;
+        }
+    }
+    return false;
+}
 
 }  // namespace
 
@@ -163,6 +182,28 @@ MessagePtr TwitchMessageBuilder::build()
                 this->channel->isBroadcaster());
         }
     }
+    if (this->tags.contains("client-nonce") &&
+        getSettings()->nonceFuckeryEnabled)
+    {
+        auto isAbnormal =
+            isAbnormalNonce(this->tags["client-nonce"].toString());
+        if (isAbnormal && getSettings()->abnormalNonceDetection)
+        {
+            this->emplace<TimestampElement>();
+            this->emplace<TextElement>(
+                "Abnormal nonce:", MessageElementFlag::ChannelPointReward,
+                MessageColor::System);
+            this->emplace<TextElement>(this->tags["client-nonce"].toString(),
+                                       MessageElementFlag::ChannelPointReward,
+                                       MessageColor::Text);
+            this->emplace<LinebreakElement>(
+                MessageElementFlag::ChannelPointReward);
+        }
+        else if (!isAbnormal)
+        {
+            this->message().flags.set(MessageFlag::WebchatDetected);
+        }
+    }
 
     this->appendChannelName();
 
@@ -198,6 +239,8 @@ MessagePtr TwitchMessageBuilder::build()
     this->appendTwitchBadges();
 
     this->appendChatterinoBadges();
+    this->appendDankerinoBadges();
+    this->appendSeventvBadges();
     this->appendFfzBadges();
 
     this->appendUsername();
@@ -972,6 +1015,7 @@ Outcome TwitchMessageBuilder::tryAppendEmote(const EmoteName &name)
 {
     auto *app = getApp();
 
+    const auto &globalSeventvEmotes = app->twitch.server->getSeventvEmotes();
     const auto &globalBttvEmotes = app->twitch.server->getBttvEmotes();
     const auto &globalFfzEmotes = app->twitch.server->getFfzEmotes();
 
@@ -988,9 +1032,26 @@ Outcome TwitchMessageBuilder::tryAppendEmote(const EmoteName &name)
         flags = MessageElementFlag::FfzEmote;
     }
     else if (this->twitchChannel &&
+             (emote = this->twitchChannel->seventvEmote(name)))
+    {
+        flags = MessageElementFlag::SeventvEmote;
+        if (emote.value()->zeroWidth)
+        {
+            flags.set(MessageElementFlag::ZeroWidthEmote);
+        }
+    }
+    else if (this->twitchChannel &&
              (emote = this->twitchChannel->bttvEmote(name)))
     {
         flags = MessageElementFlag::BttvEmote;
+    }
+    else if ((emote = globalSeventvEmotes.emote(name)))
+    {
+        flags = MessageElementFlag::SeventvEmote;
+        if (emote.value()->zeroWidth)
+        {
+            flags.set(MessageElementFlag::ZeroWidthEmote);
+        }
     }
     else if ((emote = globalFfzEmotes.emote(name)))
     {
@@ -1131,6 +1192,22 @@ void TwitchMessageBuilder::appendChatterinoBadges()
     {
         this->emplace<BadgeElement>(*badge,
                                     MessageElementFlag::BadgeChatterino);
+    }
+}
+
+void TwitchMessageBuilder::appendDankerinoBadges()
+{
+    if (auto badge = getApp()->dankerinoBadges->getBadge({this->userId_}))
+    {
+        this->emplace<BadgeElement>(*badge, MessageElementFlag::BadgeDankerino);
+    }
+}
+
+void TwitchMessageBuilder::appendSeventvBadges()
+{
+    if (auto badge = getApp()->seventvBadges->getBadge({this->userId_}))
+    {
+        this->emplace<BadgeElement>(*badge, MessageElementFlag::BadgeSeventv);
     }
 }
 

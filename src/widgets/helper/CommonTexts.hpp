@@ -6,3 +6,4 @@
 #define OPEN_IN_STREAMLINK "Open in streamlink"
 #define DONT_OPEN "Don't open"
 #define OPEN_WHISPERS_IN_BROWSER "Open whispers in browser"
+#define STREAM_SETTINGS_EDITOR "Edit stream settings"

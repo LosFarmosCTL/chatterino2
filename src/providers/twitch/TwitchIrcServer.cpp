@@ -15,6 +15,7 @@
 #include "providers/twitch/TwitchAccount.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchHelpers.hpp"
+#include "singletons/Settings.hpp"
 #include "util/PostToThread.hpp"
 
 #include <QMetaEnum>
@@ -48,6 +49,7 @@ void TwitchIrcServer::initialize(Settings &settings, Paths &paths)
         });
     });
 
+    this->seventv.loadEmotes();
     this->bttv.loadEmotes();
     this->ffz.loadEmotes();
 }
@@ -320,7 +322,11 @@ void TwitchIrcServer::onMessageSendRequested(TwitchChannel *channel,
                                 ? this->lastMessageMod_
                                 : this->lastMessagePleb_;
         size_t maxMessageCount = channel->hasHighRateLimit() ? 99 : 19;
-        auto minMessageOffset = (channel->hasHighRateLimit() ? 100ms : 1100ms);
+        const auto lowRateLimit = getSettings()->twitchLowRateLimitDelay;
+        const auto highRateLimit = getSettings()->twitchHighRateLimitDelay;
+        auto minMessageOffset = (channel->hasHighRateLimit()
+                                     ? std::chrono::milliseconds(highRateLimit)
+                                     : std::chrono::milliseconds(lowRateLimit));
 
         auto now = std::chrono::steady_clock::now();
 
@@ -363,8 +369,21 @@ void TwitchIrcServer::onMessageSendRequested(TwitchChannel *channel,
         lastMessage.push(now);
     }
 
-    this->sendMessage(channel->getName(), message);
+    if (channel->getName().startsWith("$"))
+    {
+        this->sendRawMessage("PRIVMSG " + channel->getName().mid(1) + " :" +
+                             message);
+    }
+    else
+    {
+        this->sendMessage(channel->getName(), message);
+    }
     sent = true;
+}
+
+const SeventvEmotes &TwitchIrcServer::getSeventvEmotes() const
+{
+    return this->seventv;
 }
 
 const BttvEmotes &TwitchIrcServer::getBttvEmotes() const

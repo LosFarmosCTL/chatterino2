@@ -37,6 +37,7 @@ enum class MessageElementFlag : int64_t {
     TwitchEmoteImage = (1LL << 4),
     TwitchEmoteText = (1LL << 5),
     TwitchEmote = TwitchEmoteImage | TwitchEmoteText,
+
     BttvEmoteImage = (1LL << 6),
     BttvEmoteText = (1LL << 7),
     BttvEmote = BttvEmoteImage | BttvEmoteText,
@@ -47,8 +48,16 @@ enum class MessageElementFlag : int64_t {
     FfzEmoteImage = (1LL << 9),
     FfzEmoteText = (1LL << 10),
     FfzEmote = FfzEmoteImage | FfzEmoteText,
-    EmoteImages = TwitchEmoteImage | BttvEmoteImage | FfzEmoteImage,
-    EmoteText = TwitchEmoteText | BttvEmoteText | FfzEmoteText,
+
+    SeventvEmoteImage = (1LL << 34),
+    SeventvEmoteText = (1LL << 35),
+
+    SeventvEmote = SeventvEmoteImage | SeventvEmoteText,
+
+    EmoteImages =
+        TwitchEmoteImage | BttvEmoteImage | FfzEmoteImage | SeventvEmoteImage,
+    EmoteText =
+        TwitchEmoteText | BttvEmoteText | FfzEmoteText | SeventvEmoteText,
 
     BitsStatic = (1LL << 11),
     BitsAnimated = (1LL << 12),
@@ -89,14 +98,26 @@ enum class MessageElementFlag : int64_t {
     // - Chatterino gnome badge
     BadgeChatterino = (1LL << 18),
 
-    // Slot 7: FrankerFaceZ
+    // Slot 7: Seventv
+    // - Seventv Admin
+    // - Seventv Dungeon Mistress
+    // - Seventv Moderator
+    // - Seventv Subscriber
+    BadgeSeventv = (1LL << 40),
+
+    // Slot 8: FrankerFaceZ
     // - FFZ developer badge
     // - FFZ bot badge
     // - FFZ donator badge
     BadgeFfz = (1LL << 19),
 
+    // Slot 8: Dankerino
+    // - Dankerino contributor badge
+    BadgeDankerino = (1LL << 33),
+
     Badges = BadgeGlobalAuthority | BadgePredictions | BadgeChannelAuthority |
-             BadgeSubscription | BadgeVanity | BadgeChatterino | BadgeFfz,
+             BadgeSubscription | BadgeVanity | BadgeChatterino | BadgeFfz |
+             BadgeDankerino | BadgeSeventv,
 
     ChannelName = (1LL << 20),
 
@@ -123,12 +144,16 @@ enum class MessageElementFlag : int64_t {
     OriginalLink = (1LL << 30),
 
     // ZeroWidthEmotes are emotes that are supposed to overlay over any pre-existing emotes
-    // e.g. BTTV's SoSnowy during christmas season
+    // e.g. BTTV's SoSnowy during christmas season or zerowidth 7TV emotes
     ZeroWidthEmote = (1LL << 31),
 
+    // (1LL<<33) is used by BadgeDankerino
+    // (1LL << 34) is used by SeventvEmoteImage, it is next to FfzEmote
+    // (1LL << 35) is used by SeventvEmoteText, it is next to SeventvEmoteImage
+
     Default = Timestamp | Badges | Username | BitsStatic | FfzEmoteImage |
-              BttvEmoteImage | TwitchEmoteImage | BitsAmount | Text |
-              AlwaysShow,
+              BttvEmoteImage | SeventvEmoteImage | TwitchEmoteImage |
+              BitsAmount | Text | AlwaysShow,
 };
 using MessageElementFlags = FlagsEnum<MessageElementFlag>;
 

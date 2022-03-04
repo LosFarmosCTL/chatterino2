@@ -170,10 +170,18 @@ set(SOURCE_FILES
         providers/LinkResolver.cpp
         providers/LinkResolver.hpp
 
+        providers/seventv/SeventvBadges.cpp
+        providers/seventv/SeventvBadges.hpp
+        providers/seventv/SeventvEmotes.cpp
+        providers/seventv/SeventvEmotes.hpp
+
         providers/bttv/BttvEmotes.cpp
         providers/bttv/BttvEmotes.hpp
         providers/bttv/LoadBttvChannelEmote.cpp
         providers/bttv/LoadBttvChannelEmote.hpp
+
+        providers/dankerino/DankerinoBadges.cpp
+        providers/dankerino/DankerinoBadges.hpp
 
         providers/chatterino/ChatterinoBadges.cpp
         providers/chatterino/ChatterinoBadges.hpp
@@ -379,6 +387,8 @@ set(SOURCE_FILES
         widgets/dialogs/switcher/QuickSwitcherPopup.hpp
         widgets/dialogs/switcher/SwitchSplitItem.cpp
         widgets/dialogs/switcher/SwitchSplitItem.hpp
+        widgets/dialogs/StreamSettingsDialog.cpp
+        widgets/dialogs/StreamSettingsDialog.hpp
 
         widgets/helper/Button.cpp
         widgets/helper/Button.hpp
@@ -429,6 +439,8 @@ set(SOURCE_FILES
         widgets/settingspages/CommandPage.cpp
         widgets/settingspages/CommandPage.hpp
         widgets/settingspages/ExternalToolsPage.cpp
+        widgets/settingspages/DankerinoPage.cpp
+        widgets/settingspages/DankerinoPage.hpp
         widgets/settingspages/ExternalToolsPage.hpp
         widgets/settingspages/FiltersPage.cpp
         widgets/settingspages/FiltersPage.hpp

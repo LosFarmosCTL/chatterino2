@@ -635,7 +635,8 @@ void SplitInput::insertCompletionText(const QString &input_)
         {
             const auto userMention =
                 formatUserMention(input_, edit.isFirstWord(),
-                                  getSettings()->mentionUsersWithComma);
+                                  getSettings()->mentionUsersWithComma,
+                                  getSettings()->lowercaseUsernames);
             input = "@" + userMention + " ";
             done = true;
         }
@@ -693,6 +694,18 @@ void SplitInput::editTextChanged()
             this->ui_.textEdit->setPlainText("/w " + lastUser + text.mid(2));
             this->ui_.textEdit->moveCursor(QTextCursor::EndOfBlock);
         }
+    }
+    else if (text.startsWith("/$", Qt::CaseInsensitive) &&
+             this->split_->getChannel()->isTwitchChannel())  //
+    {
+        this->ui_.textEdit->setPlainText("/w supibot " + text.mid(1));
+        this->ui_.textEdit->moveCursor(QTextCursor::EndOfBlock);
+    }
+    else if (text.startsWith("/_", Qt::CaseInsensitive) &&
+             this->split_->getChannel()->isTwitchChannel())  //
+    {
+        this->ui_.textEdit->setPlainText("/w mm_sutilitybot " + text.mid(1));
+        this->ui_.textEdit->moveCursor(QTextCursor::EndOfBlock);
     }
     else
     {

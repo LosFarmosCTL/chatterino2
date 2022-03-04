@@ -125,6 +125,7 @@ Settings::Settings(const QString &settingsDirectory)
 {
     instance_ = this;
     concurrentInstance_ = this;
+    this->moveLegacyDankerinoSettings_();
 
 #ifdef USEWINSDK
     this->autorun = isRegisteredForStartup();
@@ -134,6 +135,20 @@ Settings::Settings(const QString &settingsDirectory)
         },
         false);
 #endif
+}
+void Settings::moveLegacyDankerinoSettings_()
+{
+    if (this->legacyDankerinoRemoveSpacesBetweenEmotes_)
+    {
+        this->legacyDankerinoRemoveSpacesBetweenEmotes_ = false;
+        this->removeSpacesBetweenEmotes = true;
+    }
+    if (!this->nonceFuckeryMigrated_)
+    {
+        this->nonceFuckeryEnabled = this->abnormalNonceDetection.getValue() ||
+                                    this->normalNonceDetection.getValue();
+        this->nonceFuckeryMigrated_ = true;
+    }
 }
 
 Settings &Settings::instance()

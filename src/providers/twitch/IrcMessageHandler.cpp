@@ -511,7 +511,10 @@ void IrcMessageHandler::handleUserStateMessage(Communi::IrcMessage *message)
     }
 
     auto c = getApp()->twitch.server->getChannelOrEmpty(channelName);
-    if (c->isEmpty())
+
+    // parallel universe
+    auto pu = getApp()->twitch.server->getChannelOrEmpty("$" + channelName);
+    if (c->isEmpty() && pu->isEmpty())
     {
         return;
     }
@@ -520,12 +523,25 @@ void IrcMessageHandler::handleUserStateMessage(Communi::IrcMessage *message)
     QVariant _badges = message->tag("badges");
     if (_badges.isValid())
     {
-        TwitchChannel *tc = dynamic_cast<TwitchChannel *>(c.get());
-        if (tc != nullptr)
+        if (!c->isEmpty())
         {
-            auto parsedBadges = parseBadges(_badges.toString());
-            tc->setVIP(parsedBadges.contains("vip"));
-            tc->setStaff(parsedBadges.contains("staff"));
+            TwitchChannel *tc = dynamic_cast<TwitchChannel *>(c.get());
+            if (tc != nullptr)
+            {
+                auto parsedBadges = parseBadges(_badges.toString());
+                tc->setVIP(parsedBadges.contains("vip"));
+                tc->setStaff(parsedBadges.contains("staff"));
+            }
+        }
+        if (!pu->isEmpty())
+        {
+            TwitchChannel *putc = dynamic_cast<TwitchChannel *>(pu.get());
+            if (putc != nullptr)
+            {
+                auto parsedBadges = parseBadges(_badges.toString());
+                putc->setVIP(parsedBadges.contains("vip"));
+                putc->setStaff(parsedBadges.contains("staff"));
+            }
         }
     }
 
@@ -533,10 +549,21 @@ void IrcMessageHandler::handleUserStateMessage(Communi::IrcMessage *message)
     QVariant _mod = message->tag("mod");
     if (_mod.isValid())
     {
-        TwitchChannel *tc = dynamic_cast<TwitchChannel *>(c.get());
-        if (tc != nullptr)
+        if (!c->isEmpty())
         {
-            tc->setMod(_mod == "1");
+            TwitchChannel *tc = dynamic_cast<TwitchChannel *>(c.get());
+            if (tc != nullptr)
+            {
+                tc->setMod(_mod == "1");
+            }
+        }
+        if (!pu->isEmpty())
+        {
+            TwitchChannel *putc = dynamic_cast<TwitchChannel *>(pu.get());
+            if (putc != nullptr)
+            {
+                putc->setMod(_mod == "1");
+            }
         }
     }
 }

@@ -141,6 +141,12 @@ void CompletionModel::refresh(const QString &prefix, bool isFirstWord)
         }
     }
 
+    // 7TV Global
+    for (auto &emote : *getApp()->twitch2->getSeventvEmotes().emotes())
+    {
+        addString(emote.first.string, TaggedString::Type::SEVENTVGlobalEmote);
+    }
+
     // Bttv Global
     for (auto &emote : *getApp()->twitch2->getBttvEmotes().emotes())
     {
@@ -182,7 +188,8 @@ void CompletionModel::refresh(const QString &prefix, bool isFirstWord)
         {
             addString(
                 "@" + formatUserMention(name, isFirstWord,
-                                        getSettings()->mentionUsersWithComma),
+                                        getSettings()->mentionUsersWithComma,
+                                        getSettings()->lowercaseUsernames),
                 TaggedString::Type::Username);
         }
     }
@@ -193,9 +200,16 @@ void CompletionModel::refresh(const QString &prefix, bool isFirstWord)
         for (const auto &name : chatters)
         {
             addString(formatUserMention(name, isFirstWord,
-                                        getSettings()->mentionUsersWithComma),
+                                        getSettings()->mentionUsersWithComma,
+                                        getSettings()->lowercaseUsernames),
                       TaggedString::Type::Username);
         }
+    }
+
+    // 7TV Channel
+    for (auto &emote : *tc->seventvEmotes())
+    {
+        addString(emote.first.string, TaggedString::Type::SEVENTVChannelEmote);
     }
 
     // Bttv Channel
