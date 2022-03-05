@@ -2,6 +2,8 @@
 Chatterino 2 [![GitHub Actions Build (Windows, Ubuntu, MacOS)](https://github.com/Mm2PL/chatterino2/workflows/Build/badge.svg?branch=dankerino)](https://github.com/Mm2PL/chatterino2/actions?query=workflow%3ABuild+branch%3Adankerino)
 ============
 
+This branch is a version of [Mm2PL/dankerino](https://github.com/Mm2PL/dankerino) with some personal changes not suited for any upstream repo.
+
 ## Dankerino
 
 Dankerino is a fork of Chatterino 2.
