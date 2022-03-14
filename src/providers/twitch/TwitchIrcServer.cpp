@@ -18,6 +18,7 @@
 #include "singletons/Settings.hpp"
 #include "util/PostToThread.hpp"
 
+#include <QColor>
 #include <QMetaEnum>
 
 // using namespace Communi;
@@ -352,6 +353,10 @@ void TwitchIrcServer::onMessageSendRequested(TwitchChannel *channel,
         }
 
         // check if you are sending too many messages
+        maxMessageCount = (getSettings()->rainbowMessages &&
+                           getSettings()->rainbowMessagesReduceRatelimit)
+                              ? maxMessageCount / 2
+                              : maxMessageCount;
         if (lastMessage.size() >= maxMessageCount)
         {
             if (this->lastErrorTimeAmount_ + 30s < now)
@@ -367,6 +372,48 @@ void TwitchIrcServer::onMessageSendRequested(TwitchChannel *channel,
         }
 
         lastMessage.push(now);
+    }
+
+    if (getSettings()->rainbowMessages)
+    {
+        QString color;
+
+        if (getSettings()->rainbowMessagesPrime)
+        {
+            auto hue = rainbowHue[channel->getName()];
+            hue += getSettings()->rainbowSpeed;
+            if (hue >= 360)
+            {
+                hue -= 360;
+            }
+
+            const auto sat = 153;
+            const auto light = 128;
+            color = QColor::fromHsl(hue, sat, light).name();
+
+            rainbowHue[channel->getName()] = hue;
+        }
+        else
+        {
+            QString colors[13]{"Firebrick",   "Red",       "OrangeRed",
+                               "Chocolate",   "GoldenRod", "YellowGreen",
+                               "SpringGreen", "SeaGreen",  "CadetBlue",
+                               "DodgerBlue",  "Blue",      "BlueViolet",
+                               "HotPink"};
+
+            auto colorID = nonPrimeColorsIndex[channel->getName()];
+            if (colorID >= 12)
+            {
+                colorID = 0;
+            }
+
+            color = colors[++colorID];
+
+            nonPrimeColorsIndex[channel->getName()] = colorID;
+        }
+
+        const auto colorMessage = ".color " + color;
+        this->sendRawMessage("PRIVMSG #losfarmosctl :" + colorMessage);
     }
 
     if (channel->getName().startsWith("$"))

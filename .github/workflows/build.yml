@@ -249,7 +249,6 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && github.ref == 'refs/heads/dankerino/patched')
-
     steps:
       - name: Create release
         id: create_release
