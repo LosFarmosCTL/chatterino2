@@ -905,6 +905,14 @@ void IrcMessageHandler::handleNoticeMessage(Communi::IrcNoticeMessage *message)
                                                            users, tc, &builder);
             channel->addMessage(builder.release());
         }
+        else if (tags == "color_changed")
+        {
+            if (!getSettings()->rainbowMessages ||
+                !getSettings()->rainbowMessagesDisableChangedMessage)
+            {
+                channel->addMessage(msg);
+            }
+        }
         else
         {
             channel->addMessage(msg);
