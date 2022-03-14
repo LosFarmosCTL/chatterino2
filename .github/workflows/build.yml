@@ -4,7 +4,7 @@ name: Build
 on:
   push:
     branches:
-      - dankerino
+      - rainbow-color
   pull_request:
 
 jobs:
@@ -248,7 +248,7 @@ jobs:
   create-release:
     needs: build
     runs-on: ubuntu-latest
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/dankerino')
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/rainbow-color')
 
     steps:
       - name: Create release
