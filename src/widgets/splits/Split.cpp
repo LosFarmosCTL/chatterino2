@@ -125,8 +125,7 @@ Split::Split(QWidget *parent)
     this->view_->openChannelIn.connect([this](
                                            QString twitchChannel,
                                            FromTwitchLinkOpenChannelIn openIn) {
-        ChannelPtr channel =
-            getApp()->twitch.server->getOrAddChannel(twitchChannel);
+        ChannelPtr channel = getApp()->twitch->getOrAddChannel(twitchChannel);
         switch (openIn)
         {
             case FromTwitchLinkOpenChannelIn::Split:
@@ -174,6 +173,11 @@ Split::Split(QWidget *parent)
             {
                 this->input_->show();
             }
+        },
+        this->signalHolder_);
+    getSettings()->showTextInputPlaceholder.connect(
+        [this]() {
+            this->updateInputPlaceholder();
         },
         this->signalHolder_);
 
@@ -584,9 +588,17 @@ void Split::updateInputPlaceholder()
     }
     else
     {
-        placeholderText =
-            QString("Send message as %1...")
-                .arg(getApp()->accounts->twitch.getCurrent()->getUserName());
+        if (!getSettings()->showTextInputPlaceholder)
+        {
+            placeholderText = "";
+        }
+        else
+        {
+            placeholderText =
+                QString("Send message as %1...")
+                    .arg(
+                        getApp()->accounts->twitch.getCurrent()->getUserName());
+        }
     }
 
     this->input_->ui_.textEdit->setPlaceholderText(placeholderText);

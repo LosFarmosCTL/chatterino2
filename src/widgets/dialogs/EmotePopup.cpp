@@ -168,13 +168,22 @@ EmotePopup::EmotePopup(QWidget *parent)
     searchRegex.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
     QValidator *searchValidator = new QRegularExpressionValidator(searchRegex);
 
+    layout->setMargin(0);
+    layout->setSpacing(0);
+
+    QHBoxLayout *layout2 = new QHBoxLayout(this);
+    layout2->setMargin(8);
+    layout2->setSpacing(8);
+
     this->search_ = new QLineEdit();
     this->search_->setPlaceholderText("Search all emotes...");
     this->search_->setValidator(searchValidator);
     this->search_->setClearButtonEnabled(true);
     this->search_->findChild<QAbstractButton *>()->setIcon(
         QPixmap(":/buttons/clearSearch.png"));
-    layout->addWidget(this->search_);
+    layout2->addWidget(this->search_);
+
+    layout->addLayout(layout2);
 
     QObject::connect(this->search_, &QLineEdit::textChanged, this,
                      &EmotePopup::filterEmotes);
@@ -344,12 +353,12 @@ void EmotePopup::loadChannel(ChannelPtr channel)
     if (getSettings()->enableLoadingSevenTV)
     {
         addEmotes(*globalChannel,
-                  *getApp()->twitch2->getSeventvEmotes().emotes(), "7TV",
+                  *getApp()->twitch->getSeventvEmotes().emotes(), "7TV",
                   MessageElementFlag::SeventvEmote);
     }
-    addEmotes(*globalChannel, *getApp()->twitch2->getBttvEmotes().emotes(),
+    addEmotes(*globalChannel, *getApp()->twitch->getBttvEmotes().emotes(),
               "BetterTTV", MessageElementFlag::BttvEmote);
-    addEmotes(*globalChannel, *getApp()->twitch2->getFfzEmotes().emotes(),
+    addEmotes(*globalChannel, *getApp()->twitch->getFfzEmotes().emotes(),
               "FrankerFaceZ", MessageElementFlag::FfzEmote);
 
     // channel
@@ -417,11 +426,11 @@ void EmotePopup::filterTwitchEmotes(std::shared_ptr<Channel> searchChannel,
     }
 
     auto seventvGlobalEmotes = this->filterEmoteMap(
-        searchText, getApp()->twitch2->getSeventvEmotes().emotes());
+        searchText, getApp()->twitch->getSeventvEmotes().emotes());
     auto bttvGlobalEmotes = this->filterEmoteMap(
-        searchText, getApp()->twitch2->getBttvEmotes().emotes());
+        searchText, getApp()->twitch->getBttvEmotes().emotes());
     auto ffzGlobalEmotes = this->filterEmoteMap(
-        searchText, getApp()->twitch2->getFfzEmotes().emotes());
+        searchText, getApp()->twitch->getFfzEmotes().emotes());
 
     // twitch
     addEmoteSets(twitchGlobalEmotes, *searchChannel, *searchChannel,
