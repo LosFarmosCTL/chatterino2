@@ -79,6 +79,7 @@ private:
         Label *followageLabel = nullptr;
         Label *subageLabel = nullptr;
 
+        QCheckBox *follow = nullptr;
         QCheckBox *block = nullptr;
         QCheckBox *ignoreHighlights = nullptr;
 
