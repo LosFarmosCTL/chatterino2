@@ -13,6 +13,7 @@
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
 #include "providers/twitch/api/Helix.hpp"
+#include "providers/twitch/api/Kraken.hpp"
 #include "singletons/Resources.hpp"
 #include "singletons/Settings.hpp"
 #include "singletons/Theme.hpp"
@@ -676,7 +677,7 @@ void UserInfoPopup::installEvents()
             {
                 case Qt::CheckState::Unchecked: {
                     this->ui_.follow->setEnabled(false);
-                    getHelix()->unfollowUser(currentUser->getUserId(),
+                    getKraken()->unfollowUser(currentUser->getUserId(),
                                              this->userId_,
                                              reenableFollowCheckbox, [] {
                                                  //
@@ -691,7 +692,7 @@ void UserInfoPopup::installEvents()
 
                 case Qt::CheckState::Checked: {
                     this->ui_.follow->setEnabled(false);
-                    getHelix()->followUser(currentUser->getUserId(),
+                    getKraken()->followUser(currentUser->getUserId(),
                                            this->userId_,
                                            reenableFollowCheckbox, [] {
                                                //

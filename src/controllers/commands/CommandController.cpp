@@ -11,6 +11,7 @@
 #include "providers/twitch/TwitchCommon.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
 #include "providers/twitch/api/Helix.hpp"
+#include "providers/twitch/api/Kraken.hpp"
 #include "singletons/Emotes.hpp"
 #include "singletons/Paths.hpp"
 #include "singletons/Settings.hpp"
@@ -462,29 +463,17 @@ void CommandController::initialize(Settings &, Paths &paths)
             return "";
         }
 
-        auto target = words.at(1);
+        auto targetName = words.at(1);
 
-        getHelix()->getUserByName(
-            target,
-            [currentUser, channel, target](const auto &targetUser) {
-                getHelix()->followUser(
-                    currentUser->getUserId(), targetUser.id,
-                    [channel, target]() {
-                        channel->addMessage(makeSystemMessage(
-                            "You successfully followed " + target));
-                    },
-                    [channel, target]() {
-                        channel->addMessage(makeSystemMessage(
-                            QString("User %1 could not be followed, an unknown "
-                                    "error occurred!")
-                                .arg(target)));
-                    });
+        getKraken()->followUser(
+            currentUser->getUserName(), targetName,
+            [channel, targetName]() {
+                channel->addMessage(makeSystemMessage(
+                    "You successfully followed " + targetName));
             },
-            [channel, target] {
-                channel->addMessage(
-                    makeSystemMessage(QString("User %1 could not be followed, "
-                                              "no user with that name found!")
-                                          .arg(target)));
+            [channel, targetName]() {
+                channel->addMessage(makeSystemMessage(
+                    "An error occurred while following " + targetName));
             });
 
         return "";
@@ -506,25 +495,17 @@ void CommandController::initialize(Settings &, Paths &paths)
             return "";
         }
 
-        auto target = words.at(1);
+        auto targetName = words.at(1);
 
-        getHelix()->getUserByName(
-            target,
-            [currentUser, channel, target](const auto &targetUser) {
-                getHelix()->unfollowUser(
-                    currentUser->getUserId(), targetUser.id,
-                    [channel, target]() {
-                        channel->addMessage(makeSystemMessage(
-                            "You successfully unfollowed " + target));
-                    },
-                    [channel, target]() {
-                        channel->addMessage(makeSystemMessage(
-                            "An error occurred while unfollowing " + target));
-                    });
-            },
-            [channel, target] {
+        getKraken()->unfollowUser(
+            currentUser->getUserName(), targetName,
+            [channel, targetName]() {
                 channel->addMessage(makeSystemMessage(
-                    QString("User %1 could not be followed!").arg(target)));
+                    "You successfully unfollowed " + targetName));
+            },
+            [channel, targetName]() {
+                channel->addMessage(makeSystemMessage(
+                    "An error occurred while unfollowing " + targetName));
             });
 
         return "";

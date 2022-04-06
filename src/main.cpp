@@ -12,6 +12,7 @@
 #include "common/Version.hpp"
 #include "providers/IvrApi.hpp"
 #include "providers/twitch/api/Helix.hpp"
+#include "providers/twitch/api/Kraken.hpp"
 #include "singletons/Paths.hpp"
 #include "singletons/Settings.hpp"
 #include "util/AttachToConsole.hpp"
@@ -82,6 +83,7 @@ int main(int argc, char **argv)
 
         IvrApi::initialize();
         Helix::initialize();
+        Kraken::initialize();
 
         Settings settings(paths->settingsDirectory);
 

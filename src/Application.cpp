@@ -126,8 +126,8 @@ void Application::initialize(Settings &settings, Paths &paths)
                 {
                     if (auto channel = split->getChannel(); !channel->isEmpty())
                     {
-                        channel->addMessage(makeSystemMessage(
-                            "Chatterino crashed."));
+                        channel->addMessage(
+                            makeSystemMessage("Chatterino crashed."));
                     }
                 }
             }
