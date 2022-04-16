@@ -43,6 +43,7 @@ public:
         QString setName;
         QString ownerId;
         QString ownerName;
+        QString tier;
         QStringList setIds;
         EmoteType type;
         std::vector<TwitchEmote> emotes;

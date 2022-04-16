@@ -275,6 +275,7 @@ struct HelixEmote {
     const QString id;
     const QString name;
     const QString type;
+    const QString tier;
     const QString setId;
     const QString ownerId;
 
@@ -282,6 +283,7 @@ struct HelixEmote {
         : id(jsonObject.value("id").toString())
         , name(jsonObject.value("name").toString())
         , type(jsonObject.value("emote_type").toString())
+        , tier(jsonObject.value("tier").toString())
         , setId(jsonObject.value("emote_set_id").toString())
         , ownerId(jsonObject.value("owner_id").toString())
     {

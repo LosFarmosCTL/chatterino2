@@ -354,7 +354,7 @@ void TwitchAccount::loadUserstateEmotes(std::weak_ptr<Channel> weakChannel)
                             auto existingEmoteSet = std::find_if(
                                 emoteSets.begin(), emoteSets.end(),
                                 [&helixEmote, emoteType](const auto &emoteSet) {
-                                    // dont group together all subscription tiers
+                                    // dont group together all subscription tiers, since the get-emote-sets endpoint does not provide tier information, use the setID
                                     if (emoteType == EmoteType::Subscription)
                                     {
                                         return emoteSet->setIds.contains(helixEmote.setId);
