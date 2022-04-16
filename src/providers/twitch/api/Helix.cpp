@@ -716,10 +716,10 @@ void Helix::getChannelEmotes(
     this->makeRequest("chat/emotes", urlQuery)
         .onSuccess([successCallback,
                     failureCallback](NetworkResult result) -> Outcome {
-            QJsonObject root = result.parseJson();
-            auto data = root.value("data");
+            auto root = result.parseJson();
+            auto emoteData = root.value("data");
 
-            if (!data.isArray())
+            if (!emoteData.isArray())
             {
                 failureCallback();
                 return Failure;
@@ -727,9 +727,9 @@ void Helix::getChannelEmotes(
 
             std::vector<HelixEmote> channelEmotes;
 
-            for (const auto &jsonStream : data.toArray())
+            for (const auto &emote : emoteData.toArray())
             {
-                channelEmotes.emplace_back(jsonStream.toObject());
+                channelEmotes.emplace_back(emote.toObject());
             }
 
             successCallback(channelEmotes);
@@ -740,15 +740,6 @@ void Helix::getChannelEmotes(
             failureCallback();
         })
         .execute();
-}
-
-void Helix::getEmoteSetById(QString setId,
-                          ResultCallback<std::vector<HelixEmote>> successCallback,
-                          HelixFailureCallback failureCallback)
-{
-    QStringList setIds{std::move(setId)};
-
-    this->fetchEmoteSets(setIds, successCallback, failureCallback)
 }
 
 void Helix::fetchEmoteSets(QStringList setIds,
@@ -781,7 +772,6 @@ void Helix::fetchEmoteSets(QStringList setIds,
             }
 
             successCallback(emotes);
-
             return Success;
         })
         .onError([failureCallback](NetworkResult result) {
@@ -789,6 +779,15 @@ void Helix::fetchEmoteSets(QStringList setIds,
             failureCallback();
         })
         .execute();
+}
+
+void Helix::getEmoteSetById(QString setId,
+                          ResultCallback<std::vector<HelixEmote>> successCallback,
+                          HelixFailureCallback failureCallback)
+{
+    QStringList setIds{std::move(setId)};
+
+    this->fetchEmoteSets(setIds, successCallback, failureCallback)
 }
 
 NetworkRequest Helix::makeRequest(QString url, QUrlQuery urlQuery)
