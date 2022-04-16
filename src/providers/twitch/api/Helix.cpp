@@ -748,13 +748,7 @@ void Helix::getEmoteSetById(QString setId,
 {
     QStringList setIds{std::move(setId)};
 
-    this->fetchEmoteSets(
-        setIds,
-        [successCallback,
-         failureCallback](const std::vector<HelixEmote> &emotes) {
-            successCallback(emotes);
-        },
-        failureCallback);
+    this->fetchEmoteSets(setIds, successCallback, failureCallback)
 }
 
 void Helix::fetchEmoteSets(QStringList setIds,
