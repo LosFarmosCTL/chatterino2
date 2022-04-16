@@ -347,10 +347,9 @@ void TwitchAccount::loadUserstateEmotes(std::weak_ptr<Channel> weakChannel)
                         std::vector<std::shared_ptr<EmoteSet>> emoteSets;
                         for (const auto &helixEmote : helixEmotes)
                         {
-                            // TODO: investigate smilies
                             auto emoteType = getEmoteTypeFromHelixResponse(helixEmote.type);
 
-                            std::shared_ptr<EmoteSet> emoteSet;
+                            // TODO: investigate smilies
                             auto existingEmoteSet = std::find_if(
                                 emoteSets.begin(), emoteSets.end(),
                                 [&helixEmote, emoteType](const auto &emoteSet) {
@@ -360,20 +359,26 @@ void TwitchAccount::loadUserstateEmotes(std::weak_ptr<Channel> weakChannel)
                                         return emoteSet->setIds.contains(helixEmote.setId);
                                     }
 
-                                    //try to group by owner and type instead of set id, to avoid having i.e. Haha- emotes all in separate sets
+                                    //try to group by owner and type instead of set id, to avoid having unlockable (i.e. Haha, 2020, ...) emotes all in a seperate group
                                     return emoteSet->ownerId == helixEmote.ownerId && emoteSet->type == emoteType;
                                 });
 
+                            std::shared_ptr<EmoteSet> emoteSet;
                             if (existingEmoteSet != emoteSets.end())
                             {
                                 emoteSet = *existingEmoteSet;
+
+                                if (!emoteSet->setIds.contains(helixEmote.setId))
+                                {
+                                    emoteSet->setIds << helixEmote.setId;
+                                }
                             }
                             else
                             {
                                 emoteSet = std::make_shared<EmoteSet>();
-                                emoteSets.emplace_back(emoteSet);
 
                                 emoteSet->ownerId = helixEmote.ownerId;
+                                emoteSet->setIds << helixEmote.setId;
                                 emoteSet->type = emoteType;
 
                                 switch (emoteType)
@@ -402,25 +407,37 @@ void TwitchAccount::loadUserstateEmotes(std::weak_ptr<Channel> weakChannel)
                                         emoteSet->setName = emoteOwner->displayName;
                                         break;
                                     }
-                                    // These are all the emotes that twitch is currently putting under the qa_TW_Partner acc
+                                    // These are all the emote types that twitch is currently putting under the qa_TW_Partner acc
                                     case EmoteType::Special: {
                                         emoteSet->ownerName = "twitch";
-                                        QString helixType = helixEmote.type;
-                                        if (helixType == "prime")
+
+                                        if (helixEmote.type == "prime")
                                         {
                                             emoteSet->setName = "Prime";
                                         }
-                                        else if (helixType == "twofactor") {
+                                    else if (helixEmote.type == "twofactor") {
                                             emoteSet->setName = "2FA";
                                         }
-                                        // TODO: add all special emote types (qa_TW_Partner)
-                                        else {
+                                    else if (helixEmote.type == "limitedtime") {
+                                            emoteSet->setName = "Limited Time";
+                                        }
+                                    else if (helixEmote.type == "hypetrain") {
+                                            emoteSet->setName = "Hype Train";
+                                        }
+                                    else if (helixEmote.type == "rewards") {
+                                            emoteSet->setName = "Rewards";
+                                        }
+                                    else if (helixEmote.type == "owl2019") {
+                                            emoteSet->setName = "OWL 2019";
+                                        }
+                                    else {
                                             emoteSet->setName = "Other";
                                         }
                                     }
                                 }
+
+                                emoteSets.emplace_back(emoteSet);
                             }
-                            emoteSet->setIds << helixEmote.setId;
 
                             auto emoteId = EmoteId{helixEmote.id};
                             auto emoteCode = EmoteName{
@@ -460,7 +477,7 @@ void TwitchAccount::loadUserstateEmotes(std::weak_ptr<Channel> weakChannel)
                                 [](const TwitchEmote &l, const TwitchEmote &r) {
                                     return l.name.string < r.name.string;
                                 });
-                            emoteSet->setIds.removeDuplicates();
+
                             emoteData->emoteSets.emplace_back(emoteSet);
                         }
 
@@ -471,12 +488,23 @@ void TwitchAccount::loadUserstateEmotes(std::weak_ptr<Channel> weakChannel)
                                 "Twitch subscriber emotes reloaded."));
                         }
                     },
-                    [] {
-                        // TODO: add error messages
+                    [weakChannel] {
+                        // TODO: improve error handling?
+                        if (auto channel = weakChannel.lock();
+                            channel != nullptr)
+                        {
+                            channel->addMessage(makeSystemMessage(
+                                "Failed to fetch Twitch emotes (unknown error)"));
+                        }
                     });
             },
-            [] {
-                // fetching emotes failed, ivr API might be down
+            [weakChannel] {
+                if (auto channel = weakChannel.lock();
+                    channel != nullptr)
+                {
+                    channel->addMessage(makeSystemMessage(
+                        "Failed to fetch Twitch emotes (unknown error)"));
+                }
             });
     };
 }
