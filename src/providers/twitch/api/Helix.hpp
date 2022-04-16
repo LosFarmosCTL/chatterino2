@@ -271,34 +271,19 @@ struct HelixCheermoteSet {
     }
 };
 
-struct HelixEmoteSetData {
-    QString setId;
-    QString ownerId;
-    QString emoteType;
-
-    explicit HelixEmoteSetData(QJsonObject jsonObject)
-        : setId(jsonObject.value("emote_set_id").toString())
-        , ownerId(jsonObject.value("owner_id").toString())
-        , emoteType(jsonObject.value("emote_type").toString())
-    {
-    }
-};
-
-struct HelixChannelEmote {
-    const QString emoteId;
+struct HelixEmote {
+    const QString id;
     const QString name;
     const QString type;
     const QString setId;
-    const QString url;
+    const QString ownerId;
 
-    explicit HelixChannelEmote(QJsonObject jsonObject)
-        : emoteId(jsonObject.value("id").toString())
+    explicit HelixEmote(QJsonObject jsonObject)
+        : id(jsonObject.value("id").toString())
         , name(jsonObject.value("name").toString())
         , type(jsonObject.value("emote_type").toString())
         , setId(jsonObject.value("emote_set_id").toString())
-        , url(QString(TWITCH_EMOTE_TEMPLATE)
-                  .replace("{id}", this->emoteId)
-                  .replace("{scale}", "3.0"))
+        , ownerId(jsonObject.value("owner_id").toString())
     {
     }
 };
@@ -328,6 +313,9 @@ class Helix final : boost::noncopyable
 public:
     // https://dev.twitch.tv/docs/api/reference#get-users
     void fetchUsers(QStringList userIds, QStringList userLogins,
+                    ResultCallback<std::vector<HelixUser>> successCallback,
+                    HelixFailureCallback failureCallback);
+    void fetchUsersById(QStringList userIds,
                     ResultCallback<std::vector<HelixUser>> successCallback,
                     HelixFailureCallback failureCallback);
     void getUserByName(QString userName,
@@ -423,14 +411,18 @@ public:
         HelixFailureCallback failureCallback);
 
     // https://dev.twitch.tv/docs/api/reference#get-emote-sets
-    void getEmoteSetData(QString emoteSetId,
-                         ResultCallback<HelixEmoteSetData> successCallback,
+    void getEmoteSetById(QString setId,
+                         ResultCallback<std::vector<HelixEmote>> successCallback,
                          HelixFailureCallback failureCallback);
+
+    void fetchEmoteSets(QStringList setIds,
+                            ResultCallback<std::vector<HelixEmote>> successCallback,
+                            HelixFailureCallback failureCallback);
 
     // https://dev.twitch.tv/docs/api/reference#get-channel-emotes
     void getChannelEmotes(
         QString broadcasterId,
-        ResultCallback<std::vector<HelixChannelEmote>> successCallback,
+        ResultCallback<std::vector<HelixEmote>> successCallback,
         HelixFailureCallback failureCallback);
 
     void update(QString clientId, QString oauthToken);

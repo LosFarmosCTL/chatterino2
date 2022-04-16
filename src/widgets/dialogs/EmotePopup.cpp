@@ -85,34 +85,28 @@ namespace {
     }
     void addEmoteSets(
         std::vector<std::shared_ptr<TwitchAccount::EmoteSet>> sets,
-        Channel &globalChannel, Channel &subChannel, QString currentChannelName)
+        Channel &globalChannel, Channel &subChannel, Channel &specialChannel, QString currentChannelName)
     {
-        QMap<QString, QPair<bool, std::vector<MessagePtr>>> mapOfSets;
+        QMap<QString, QPair<TwitchAccount::EmoteType, std::vector<MessagePtr>>> emoteSetMessages;
 
         for (const auto &set : sets)
         {
-            // Some emotes (e.g. follower ones) are only available in their origin channel
-            if (set->local && currentChannelName != set->channelName)
+            // Follower emotes are only available in their origin channel
+            if (set->type == TwitchAccount::EmoteType::Follower && currentChannelName != set->ownerName)
             {
                 continue;
             }
 
-            // TITLE
-            auto channelName = set->channelName;
-            auto text = set->text.isEmpty() ? "Twitch" : set->text;
+            if (emoteSetMessages.find(set->setName) == emoteSetMessages.end())
+            {
+                std::vector<MessagePtr> setMessages;
+                setMessages.push_back(makeTitleMessage(set->setName));
+                emoteSetMessages[set->setName] = qMakePair(set->type, setMessages);
+            }
 
-            // EMOTES
             MessageBuilder builder;
             builder->flags.set(MessageFlag::Centered);
             builder->flags.set(MessageFlag::DisableCompactEmotes);
-
-            // If value of map is empty, create init pair and add title.
-            if (mapOfSets.find(channelName) == mapOfSets.end())
-            {
-                std::vector<MessagePtr> b;
-                b.push_back(makeTitleMessage(text));
-                mapOfSets[channelName] = qMakePair(set->key == "0", b);
-            }
 
             for (const auto &emote : set->emotes)
             {
@@ -125,28 +119,41 @@ namespace {
                     ->setLink(Link(Link::InsertText, emote.name.string));
             }
 
-            mapOfSets[channelName].second.push_back(builder.release());
+            emoteSetMessages[set->setName].second.push_back(builder.release());
         }
 
         // Output to channel all created messages,
         // That contain title or emotes.
         // Put current channel emotes at the top
-        auto currentChannelPair = mapOfSets[currentChannelName];
-        for (auto message : currentChannelPair.second)
+        auto currentChannelEmoteMessages = emoteSetMessages[currentChannelName];
+        for (auto message : currentChannelEmoteMessages.second)
         {
             subChannel.addMessage(message);
         }
-        mapOfSets.remove(currentChannelName);
+        emoteSetMessages.remove(currentChannelName);
 
-        foreach (auto pair, mapOfSets)
+        for (auto pair : emoteSetMessages)
         {
-            auto &channel = pair.first ? globalChannel : subChannel;
             for (auto message : pair.second)
             {
-                channel.addMessage(message);
+                switch (pair.first)
+                {
+                    case TwitchAccount::EmoteType::Global:
+                    case TwitchAccount::EmoteType::Smilies:
+                        globalChannel.addMessage(message);
+                        break;
+                    case TwitchAccount::EmoteType::Subscription:
+                    case TwitchAccount::EmoteType::Bits:
+                    case TwitchAccount::EmoteType::Follower:
+                        subChannel.addMessage(message);
+                        break;
+                    case TwitchAccount::EmoteType::Special:
+                        specialChannel.addMessage(message);
+                }
             }
         }
     }
+
     void addEmotes(Channel &channel, const EmoteMap &map, const QString &title,
                    const MessageElementFlag &emoteFlag)
     {
@@ -220,6 +227,7 @@ EmotePopup::EmotePopup(QWidget *parent)
     this->subEmotesView_ = makeView("Subs");
     this->channelEmotesView_ = makeView("Channel");
     this->globalEmotesView_ = makeView("Global");
+    this->specialEmotesView_ = makeView("Special");
     this->viewEmojis_ = makeView("Emojis");
 
     this->loadEmojis(*this->viewEmojis_, getApp()->emotes->emojis.emojis);
@@ -341,13 +349,14 @@ void EmotePopup::loadChannel(ChannelPtr channel)
     }
 
     auto subChannel = std::make_shared<Channel>("", Channel::Type::None);
-    auto globalChannel = std::make_shared<Channel>("", Channel::Type::None);
     auto channelChannel = std::make_shared<Channel>("", Channel::Type::None);
+    auto globalChannel = std::make_shared<Channel>("", Channel::Type::None);
+    auto specialChannel = std::make_shared<Channel>("", Channel::Type::None);
 
     // twitch
     addEmoteSets(
         getApp()->accounts->twitch.getCurrent()->accessEmotes()->emoteSets,
-        *globalChannel, *subChannel, this->channel_->getName());
+        *globalChannel, *subChannel, *specialChannel, this->channel_->getName());
 
     // global
     addEmotes(*globalChannel, *getApp()->twitch->getBttvEmotes().emotes(),
@@ -361,9 +370,10 @@ void EmotePopup::loadChannel(ChannelPtr channel)
     addEmotes(*channelChannel, *this->twitchChannel_->ffzEmotes(),
               "FrankerFaceZ", MessageElementFlag::FfzEmote);
 
-    this->globalEmotesView_->setChannel(globalChannel);
     this->subEmotesView_->setChannel(subChannel);
     this->channelEmotesView_->setChannel(channelChannel);
+    this->globalEmotesView_->setChannel(globalChannel);
+    this->specialEmotesView_->setChannel(specialChannel);
 
     if (subChannel->getMessageSnapshot().size() == 0)
     {
@@ -420,7 +430,7 @@ void EmotePopup::filterTwitchEmotes(std::shared_ptr<Channel> searchChannel,
         searchText, getApp()->twitch->getFfzEmotes().emotes());
 
     // twitch
-    addEmoteSets(twitchGlobalEmotes, *searchChannel, *searchChannel,
+    addEmoteSets(twitchGlobalEmotes, *searchChannel, *searchChannel, *searchChannel,
                  this->channel_->getName());
 
     // global

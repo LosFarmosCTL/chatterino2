@@ -55,6 +55,13 @@ void Helix::fetchUsers(QStringList userIds, QStringList userLogins,
         .execute();
 }
 
+void Helix::fetchUsersById(QStringList userIds,
+                           ResultCallback<std::vector<HelixUser>> successCallback,
+                           HelixFailureCallback failureCallback)
+{
+    this->fetchUsers(userIds, QStringList(), successCallback, failureCallback);
+}
+
 void Helix::getUserByName(QString userName,
                           ResultCallback<HelixUser> successCallback,
                           HelixFailureCallback failureCallback)
@@ -698,41 +705,9 @@ void Helix::getCheermotes(
         .execute();
 }
 
-void Helix::getEmoteSetData(QString emoteSetId,
-                            ResultCallback<HelixEmoteSetData> successCallback,
-                            HelixFailureCallback failureCallback)
-{
-    QUrlQuery urlQuery;
-
-    urlQuery.addQueryItem("emote_set_id", emoteSetId);
-
-    this->makeRequest("chat/emotes/set", urlQuery)
-        .onSuccess([successCallback, failureCallback,
-                    emoteSetId](auto result) -> Outcome {
-            QJsonObject root = result.parseJson();
-            auto data = root.value("data");
-
-            if (!data.isArray() || data.toArray().isEmpty())
-            {
-                failureCallback();
-                return Failure;
-            }
-
-            HelixEmoteSetData emoteSetData(data.toArray()[0].toObject());
-
-            successCallback(emoteSetData);
-            return Success;
-        })
-        .onError([failureCallback](NetworkResult result) {
-            // TODO: make better xd
-            failureCallback();
-        })
-        .execute();
-}
-
 void Helix::getChannelEmotes(
     QString broadcasterId,
-    ResultCallback<std::vector<HelixChannelEmote>> successCallback,
+    ResultCallback<std::vector<HelixEmote>> successCallback,
     HelixFailureCallback failureCallback)
 {
     QUrlQuery urlQuery;
@@ -750,7 +725,7 @@ void Helix::getChannelEmotes(
                 return Failure;
             }
 
-            std::vector<HelixChannelEmote> channelEmotes;
+            std::vector<HelixEmote> channelEmotes;
 
             for (const auto &jsonStream : data.toArray())
             {
@@ -761,6 +736,61 @@ void Helix::getChannelEmotes(
             return Success;
         })
         .onError([failureCallback](auto result) {
+            // TODO: make better xd
+            failureCallback();
+        })
+        .execute();
+}
+
+void Helix::getEmoteSetById(QString setId,
+                          ResultCallback<std::vector<HelixEmote>> successCallback,
+                          HelixFailureCallback failureCallback)
+{
+    QStringList setIds{std::move(setId)};
+
+    this->fetchEmoteSets(
+        setIds,
+        [successCallback,
+         failureCallback](const std::vector<HelixEmote> &emotes) {
+            successCallback(emotes);
+        },
+        failureCallback);
+}
+
+void Helix::fetchEmoteSets(QStringList setIds,
+                            ResultCallback<std::vector<HelixEmote>> successCallback,
+                            HelixFailureCallback failureCallback)
+{
+    QUrlQuery urlQuery;
+
+    for (int i = 0; i < setIds.size(); i++)
+    {
+        urlQuery.addQueryItem("emote_set_id", setIds[i]);
+    }
+
+    this->makeRequest("chat/emotes/set", urlQuery)
+        .onSuccess([successCallback, failureCallback](auto result) -> Outcome {
+            auto root = result.parseJson();
+            auto emoteData = root.value("data");
+
+            if (!emoteData.isArray())
+            {
+                failureCallback();
+                return Failure;
+            }
+
+            std::vector<HelixEmote> emotes;
+
+            for (const auto &emote : emoteData.toArray())
+            {
+                emotes.emplace_back(emote.toObject());
+            }
+
+            successCallback(emotes);
+
+            return Success;
+        })
+        .onError([failureCallback](NetworkResult result) {
             // TODO: make better xd
             failureCallback();
         })

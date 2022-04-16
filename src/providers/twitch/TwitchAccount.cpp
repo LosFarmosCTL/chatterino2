@@ -24,8 +24,8 @@ namespace chatterino {
 
 std::vector<QStringList> getEmoteSetBatches(QStringList emoteSetKeys)
 {
-    // splitting emoteSetKeys to batches of 100, because Ivr API endpoint accepts a maximum of 100 emotesets at once
-    constexpr int batchSize = 100;
+    // splitting emoteSetKeys to batches of 25, because the Helix endpoint accepts a maximum of 25 emotesets at once
+    constexpr int batchSize = 25;
 
     int batchCount = (emoteSetKeys.size() / batchSize) + 1;
 
@@ -234,6 +234,32 @@ bool TwitchAccount::setUserstateEmoteSets(QStringList newEmoteSets)
     return true;
 }
 
+TwitchAccount::EmoteType TwitchAccount::getEmoteTypeFromHelixResponse(const QString emoteSetType)
+{
+    if (emoteSetType == "globals")
+    {
+        return TwitchAccount::EmoteType::Global;
+    }
+else if (emoteSetType == "smilies")
+    {
+        return TwitchAccount::EmoteType::Smilies;
+    }
+else if (emoteSetType == "subscriptions")
+    {
+        return TwitchAccount::EmoteType::Subscription;
+    }
+else if (emoteSetType == "bitstier")
+    {
+        return TwitchAccount::EmoteType::Bits;
+    }
+else if (emoteSetType == "follower")
+    {
+        return TwitchAccount::EmoteType::Follower;
+    }
+
+    return TwitchAccount::EmoteType::Special;
+}
+
 void TwitchAccount::loadUserstateEmotes(std::weak_ptr<Channel> weakChannel)
 {
     if (this->userstateEmoteSets_.isEmpty())
@@ -249,7 +275,10 @@ void TwitchAccount::loadUserstateEmotes(std::weak_ptr<Channel> weakChannel)
     // get list of already fetched emote sets
     for (const auto &userEmoteSet : userEmoteSets)
     {
-        existingEmoteSetKeys.push_back(userEmoteSet->key);
+        for (const auto &setId : userEmoteSet->setIds)
+        {
+            existingEmoteSetKeys.push_back(setId);
+        }
     }
 
     // filter out emote sets from userstate message, which are not in fetched emote set list
@@ -273,87 +302,178 @@ void TwitchAccount::loadUserstateEmotes(std::weak_ptr<Channel> weakChannel)
     {
         qCDebug(chatterinoTwitch)
             << QString(
-                   "Loading %1 emotesets from IVR; batch %2/%3 (%4 sets): %5")
+                   "Loading %1 emotesets from Helix; batch %2/%3 (%4 sets): %5")
                    .arg(newEmoteSetKeys.size())
                    .arg(i + 1)
                    .arg(batches.size())
                    .arg(batches.at(i).size())
                    .arg(batches.at(i).join(","));
-        getIvr()->getBulkEmoteSets(
-            batches.at(i).join(","),
-            [this, weakChannel](QJsonArray emoteSetArray) {
-                auto emoteData = this->emotes_.access();
-                auto localEmoteData = this->localEmotes_.access();
-                for (auto emoteSet_ : emoteSetArray)
+
+        getHelix()->fetchEmoteSets(
+            batches.at(i),
+            [this, weakChannel](const std::vector<HelixEmote> &helixEmotes) {
+
+                QStringList emoteOwnerIds;
+                for (const auto &helixEmote : helixEmotes)
                 {
-                    auto emoteSet = std::make_shared<EmoteSet>();
-
-                    IvrEmoteSet ivrEmoteSet(emoteSet_.toObject());
-
-                    QString setKey = ivrEmoteSet.setId;
-                    emoteSet->key = setKey;
-
-                    // check if the emoteset is already in emoteData
-                    auto isAlreadyFetched =
-                        std::find_if(emoteData->emoteSets.begin(),
-                                     emoteData->emoteSets.end(),
-                                     [setKey](std::shared_ptr<EmoteSet> set) {
-                                         return (set->key == setKey);
+                    auto alreadyAdded =
+                        std::find_if(emoteOwnerIds.begin(), emoteOwnerIds.end(),
+                                     [&helixEmote](const auto &ownerId) {
+                                         return helixEmote.ownerId == ownerId;
                                      });
-                    if (isAlreadyFetched != emoteData->emoteSets.end())
+
+                    if (alreadyAdded != emoteOwnerIds.end())
                     {
                         continue;
                     }
 
-                    emoteSet->channelName = ivrEmoteSet.login;
-                    emoteSet->text = ivrEmoteSet.displayName;
-
-                    for (const auto &emoteObj : ivrEmoteSet.emotes)
+                    // twitch is used as owner id for smilies and would result in the user lookup to fail
+                    if (helixEmote.ownerId == "twitch")
                     {
-                        IvrEmote ivrEmote(emoteObj.toObject());
-
-                        auto id = EmoteId{ivrEmote.id};
-                        auto code = EmoteName{
-                            TwitchEmotes::cleanUpEmoteCode(ivrEmote.code)};
-
-                        emoteSet->emotes.push_back(TwitchEmote{id, code});
-
-                        auto emote =
-                            getApp()->emotes->twitch.getOrCreateEmote(id, code);
-
-                        // Follower emotes can be only used in their origin channel
-                        if (ivrEmote.emoteType == "FOLLOWER")
-                        {
-                            emoteSet->local = true;
-
-                            // EmoteMap for target channel wasn't initialized yet, doing it now
-                            if (localEmoteData->find(ivrEmoteSet.channelId) ==
-                                localEmoteData->end())
-                            {
-                                localEmoteData->emplace(ivrEmoteSet.channelId,
-                                                        EmoteMap());
-                            }
-
-                            localEmoteData->at(ivrEmoteSet.channelId)
-                                .emplace(code, emote);
-                        }
-                        else
-                        {
-                            emoteData->emotes.emplace(code, emote);
-                        }
+                        continue;
                     }
-                    std::sort(emoteSet->emotes.begin(), emoteSet->emotes.end(),
-                              [](const TwitchEmote &l, const TwitchEmote &r) {
-                                  return l.name.string < r.name.string;
-                              });
-                    emoteData->emoteSets.emplace_back(emoteSet);
+
+                    emoteOwnerIds << helixEmote.ownerId;
                 }
 
-                if (auto channel = weakChannel.lock(); channel != nullptr)
-                {
-                    channel->addMessage(makeSystemMessage(
-                        "Twitch subscriber emotes reloaded."));
-                }
+                // Helix does not provide display/login name for emote set owners, so we have to look them up with another API call
+                getHelix()->fetchUsersById(
+                    emoteOwnerIds,
+                    [this, weakChannel,
+                     helixEmotes](const std::vector<HelixUser> &users) {
+                        auto emoteData = this->emotes_.access();
+                        auto localEmoteData = this->localEmotes_.access();
+
+                        std::vector<std::shared_ptr<EmoteSet>> emoteSets;
+                        for (const auto &helixEmote : helixEmotes)
+                        {
+                            // TODO: investigate smilies
+                            auto emoteType = getEmoteTypeFromHelixResponse(helixEmote.type);
+
+                            std::shared_ptr<EmoteSet> emoteSet;
+                            auto existingEmoteSet = std::find_if(
+                                emoteSets.begin(), emoteSets.end(),
+                                [&helixEmote, emoteType](const auto &emoteSet) {
+                                    // dont group together all subscription tiers
+                                    if (emoteType == EmoteType::Subscription)
+                                    {
+                                        return emoteSet->setIds.contains(helixEmote.setId);
+                                    }
+
+                                    //try to group by owner and type instead of set id, to avoid having i.e. Haha- emotes all in separate sets
+                                    return emoteSet->ownerId == helixEmote.ownerId && emoteSet->type == emoteType;
+                                });
+
+                            if (existingEmoteSet != emoteSets.end())
+                            {
+                                emoteSet = *existingEmoteSet;
+                            }
+                            else
+                            {
+                                emoteSet = std::make_shared<EmoteSet>();
+                                emoteSets.emplace_back(emoteSet);
+
+                                emoteSet->ownerId = helixEmote.ownerId;
+                                emoteSet->type = emoteType;
+
+                                switch (emoteType)
+                                {
+                                    case EmoteType::Global:
+                                    case EmoteType::Smilies: {
+                                        emoteSet->ownerName = "twitch";
+                                        emoteSet->setName = "Twitch";
+                                        break;
+                                    }
+                                    case EmoteType::Subscription:
+                                    case EmoteType::Bits:
+                                    case EmoteType::Follower: {
+                                        auto emoteOwner = std::find_if(
+                                            users.begin(), users.end(),
+                                            [&helixEmote](const auto &user) {
+                                                return user.id == helixEmote.ownerId;
+                                            });
+
+                                        if (emoteOwner == users.end())
+                                        {
+                                            continue;
+                                        }
+
+                                        emoteSet->ownerName = emoteOwner->login;
+                                        emoteSet->setName = emoteOwner->displayName;
+                                        break;
+                                    }
+                                    // These are all the emotes that twitch is currently putting under the qa_TW_Partner acc
+                                    case EmoteType::Special: {
+                                        emoteSet->ownerName = "twitch";
+                                        QString helixType = helixEmote.type;
+                                        if (helixType == "prime")
+                                        {
+                                            emoteSet->setName = "Prime";
+                                        }
+                                        else if (helixType == "twofactor") {
+                                            emoteSet->setName = "2FA";
+                                        }
+                                        // TODO: add all special emote types (qa_TW_Partner)
+                                        else {
+                                            emoteSet->setName = "Other";
+                                        }
+                                    }
+                                }
+                            }
+                            emoteSet->setIds << helixEmote.setId;
+
+                            auto emoteId = EmoteId{helixEmote.id};
+                            auto emoteCode = EmoteName{
+                                TwitchEmotes::cleanUpEmoteCode(helixEmote.name)};
+
+                            emoteSet->emotes.push_back(
+                                TwitchEmote{emoteId, emoteCode});
+
+                            auto emote =
+                                getApp()->emotes->twitch.getOrCreateEmote(emoteId,
+                                                                          emoteCode);
+                            if (emoteSet->type == EmoteType::Follower)
+                            {
+                                // EmoteMap for target channel wasn't initialized yet, doing it now
+                                if (localEmoteData->find(
+                                        emoteSet->ownerName) ==
+                                    localEmoteData->end())
+                                {
+                                    localEmoteData->emplace(
+                                        emoteSet->ownerName, EmoteMap());
+                                }
+
+                                localEmoteData->at(emoteSet->ownerName)
+                                    .emplace(emoteCode, emote);
+                            }
+                            else
+                            {
+                                emoteData->emotes.emplace(emoteCode, emote);
+                            }
+                        }
+
+                        for (const auto &emoteSet : emoteSets)
+                        {
+                            std::sort(
+                                emoteSet->emotes.begin(),
+                                emoteSet->emotes.end(),
+                                [](const TwitchEmote &l, const TwitchEmote &r) {
+                                    return l.name.string < r.name.string;
+                                });
+                            emoteSet->setIds.removeDuplicates();
+                            emoteData->emoteSets.emplace_back(emoteSet);
+                        }
+
+                        if (auto channel = weakChannel.lock();
+                            channel != nullptr)
+                        {
+                            channel->addMessage(makeSystemMessage(
+                                "Twitch subscriber emotes reloaded."));
+                        }
+                    },
+                    [] {
+                        // TODO: add error messages
+                    });
             },
             [] {
                 // fetching emotes failed, ivr API might be down
@@ -466,71 +586,5 @@ void TwitchAccount::autoModDeny(const QString msgID, ChannelPtr channel)
         });
 }
 
-void TwitchAccount::loadEmoteSetData(std::shared_ptr<EmoteSet> emoteSet)
-{
-    if (!emoteSet)
-    {
-        qCWarning(chatterinoTwitch) << "null emote set sent";
-        return;
-    }
-
-    auto staticSetIt = this->staticEmoteSets.find(emoteSet->key);
-    if (staticSetIt != this->staticEmoteSets.end())
-    {
-        const auto &staticSet = staticSetIt->second;
-        emoteSet->channelName = staticSet.channelName;
-        emoteSet->text = staticSet.text;
-        return;
-    }
-
-    getHelix()->getEmoteSetData(
-        emoteSet->key,
-        [emoteSet](HelixEmoteSetData emoteSetData) {
-            // Follower emotes can be only used in their origin channel
-            if (emoteSetData.emoteType == "follower")
-            {
-                emoteSet->local = true;
-            }
-
-            if (emoteSetData.ownerId.isEmpty() ||
-                emoteSetData.setId != emoteSet->key)
-            {
-                qCDebug(chatterinoTwitch)
-                    << QString("Failed to fetch emoteSetData for %1, assuming "
-                               "Twitch is the owner")
-                           .arg(emoteSet->key);
-
-                // most (if not all) emotes that fail to load are time limited event emotes owned by Twitch
-                emoteSet->channelName = "twitch";
-                emoteSet->text = "Twitch";
-
-                return;
-            }
-
-            // emote set 0 = global emotes
-            if (emoteSetData.ownerId == "0")
-            {
-                // emoteSet->channelName = QString();
-                emoteSet->text = "Twitch Global";
-                return;
-            }
-
-            getHelix()->getUserById(
-                emoteSetData.ownerId,
-                [emoteSet](HelixUser user) {
-                    emoteSet->channelName = user.login;
-                    emoteSet->text = user.displayName;
-                },
-                [emoteSetData] {
-                    qCWarning(chatterinoTwitch)
-                        << "Failed to query user by id:" << emoteSetData.ownerId
-                        << emoteSetData.setId;
-                });
-        },
-        [emoteSet] {
-            // fetching emoteset data failed
-            return;
-        });
-}
 
 }  // namespace chatterino

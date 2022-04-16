@@ -28,9 +28,10 @@ public:
     pajlada::Signals::Signal<Link> linkClicked;
 
 private:
-    ChannelView *globalEmotesView_{};
-    ChannelView *channelEmotesView_{};
     ChannelView *subEmotesView_{};
+    ChannelView *channelEmotesView_{};
+    ChannelView *globalEmotesView_{};
+    ChannelView *specialEmotesView_{};
     ChannelView *viewEmojis_{};
     /**
      * @brief Visible only when the user has specified a search query into the `search_` input.
