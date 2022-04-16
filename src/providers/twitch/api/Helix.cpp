@@ -787,7 +787,7 @@ void Helix::getEmoteSetById(QString setId,
 {
     QStringList setIds{std::move(setId)};
 
-    this->fetchEmoteSets(setIds, successCallback, failureCallback)
+    this->fetchEmoteSets(setIds, successCallback, failureCallback);
 }
 
 NetworkRequest Helix::makeRequest(QString url, QUrlQuery urlQuery)
