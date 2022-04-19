@@ -380,6 +380,11 @@ void TwitchIrcServer::onMessageSendRequested(TwitchChannel *channel,
 
         if (getSettings()->rainbowMessagesPrime)
         {
+            if (!rainbowHue.count(channel->getName()))
+            {
+                rainbowHue[channel->getName()] = getSettings()->rainbowStartingHue;
+            }
+
             auto hue = rainbowHue[channel->getName()];
             hue += getSettings()->rainbowSpeed;
             if (hue >= 360)
@@ -413,7 +418,13 @@ void TwitchIrcServer::onMessageSendRequested(TwitchChannel *channel,
         }
 
         const auto colorMessage = ".color " + color;
-        this->sendRawMessage("PRIVMSG #losfarmosctl :" + colorMessage);
+
+        // use the authenticated users channel to send /color messages
+        QString currentUsername =
+            getApp()->accounts->twitch.getCurrent()->getUserName();
+
+        this->sendRawMessage("PRIVMSG #" + currentUsername + " :" +
+                             colorMessage);
     }
 
     if (channel->getName().startsWith("$"))

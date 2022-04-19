@@ -168,6 +168,7 @@ public:
         "/behaviour/rainbow/disableColorChangedNotice", true};
     BoolSetting rainbowMessagesPrime = {"/behaviour/rainbow/primeColors", true};
     IntSetting rainbowSpeed = {"/behaviour/rainbow/speed", 10};
+    IntSetting rainbowStartingHue = {"/behaviour/rainbow/startingHue", 0};
     BoolSetting mentionUsersWithAt = {"/behaviour/mentionUsersWithAt", false};
     BoolSetting showJoins = {"/behaviour/showJoins", false};
     BoolSetting showParts = {"/behaviour/showParts", false};
