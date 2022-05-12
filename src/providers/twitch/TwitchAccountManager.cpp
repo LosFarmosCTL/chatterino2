@@ -120,7 +120,7 @@ void TwitchAccountManager::reloadUsers()
                     qCDebug(chatterinoTwitch)
                         << "It was the current user, so we need to "
                            "reconnect stuff!";
-                    this->currentUserChanged.invoke();
+                    this->currentUserChanged();
                 }
             }
             break;
@@ -158,7 +158,7 @@ void TwitchAccountManager::load()
             this->currentUser_ = this->anonymousUser_;
         }
 
-        this->currentUserChanged.invoke();
+        this->currentUserChanged();
     });
 }
 
