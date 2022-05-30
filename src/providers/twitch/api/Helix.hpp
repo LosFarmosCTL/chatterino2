@@ -369,6 +369,11 @@ public:
         ResultCallback<HelixUsersFollowsResponse> successCallback,
         HelixFailureCallback failureCallback) = 0;
 
+    virtual void getUserFollow(
+        QString userId, QString targetId,
+        ResultCallback<bool, HelixUsersFollowsRecord> successCallback,
+        HelixFailureCallback failureCallback) = 0;
+
     // https://dev.twitch.tv/docs/api/reference#get-streams
     virtual void fetchStreams(
         QStringList userIds, QStringList userLogins,
@@ -507,7 +512,7 @@ public:
     void getUserFollow(
         QString userId, QString targetId,
         ResultCallback<bool, HelixUsersFollowsRecord> successCallback,
-        HelixFailureCallback failureCallback);
+        HelixFailureCallback failureCallback) final;
 
     // https://dev.twitch.tv/docs/api/reference#get-streams
     void fetchStreams(QStringList userIds, QStringList userLogins,
