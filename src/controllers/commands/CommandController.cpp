@@ -1,6 +1,7 @@
 #include "CommandController.hpp"
 
 #include "Application.hpp"
+#include "common/Env.hpp"
 #include "common/SignalVector.hpp"
 #include "controllers/accounts/AccountController.hpp"
 #include "controllers/commands/Command.hpp"
@@ -17,10 +18,12 @@
 #include "singletons/Settings.hpp"
 #include "singletons/Theme.hpp"
 #include "singletons/WindowManager.hpp"
+#include "util/Clipboard.hpp"
 #include "util/CombinePath.hpp"
 #include "util/FormatTime.hpp"
 #include "util/Helpers.hpp"
 #include "util/IncognitoBrowser.hpp"
+#include "util/Qt.hpp"
 #include "util/StreamLink.hpp"
 #include "util/Twitch.hpp"
 #include "widgets/Window.hpp"
@@ -156,7 +159,7 @@ bool appendWhisperMessageWordsLocally(const QStringList &words)
 bool appendWhisperMessageStringLocally(const QString &textNoEmoji)
 {
     QString text = getApp()->emotes->emojis.replaceShortCodes(textNoEmoji);
-    QStringList words = text.split(' ', QString::SkipEmptyParts);
+    QStringList words = text.split(' ', Qt::SkipEmptyParts);
 
     if (words.length() == 0)
     {
@@ -424,6 +427,29 @@ void CommandController::initialize(Settings &, Paths &paths)
             return "";
         });
 
+    this->registerCommand("/debug-env", [](const auto & /*words*/,
+                                           ChannelPtr channel) {
+        auto env = Env::get();
+
+        QStringList debugMessages{
+            "recentMessagesApiUrl: " + env.recentMessagesApiUrl,
+            "linkResolverUrl: " + env.linkResolverUrl,
+            "twitchServerHost: " + env.twitchServerHost,
+            "twitchServerPort: " + QString::number(env.twitchServerPort),
+            "twitchServerSecure: " + QString::number(env.twitchServerSecure),
+        };
+
+        for (QString &str : debugMessages)
+        {
+            MessageBuilder builder;
+            builder.emplace<TimestampElement>(QTime::currentTime());
+            builder.emplace<TextElement>(str, MessageElementFlag::Text,
+                                         MessageColor::System);
+            channel->addMessage(builder.release());
+        }
+        return "";
+    });
+
     this->registerCommand("/uptime", [](const auto & /*words*/, auto channel) {
         auto *twitchChannel = dynamic_cast<TwitchChannel *>(channel.get());
         if (twitchChannel == nullptr)
@@ -569,6 +595,36 @@ void CommandController::initialize(Settings &, Paths &paths)
         userPopup->setData(userName, channel);
         userPopup->move(QCursor::pos());
         userPopup->show();
+        return "";
+    });
+
+    this->registerCommand("/requests", [](const QStringList &words,
+                                          ChannelPtr channel) {
+        QString target(words.value(1));
+
+        if (target.isEmpty())
+        {
+            if (channel->getType() == Channel::Type::Twitch &&
+                !channel->isEmpty())
+            {
+                target = channel->getName();
+            }
+            else
+            {
+                channel->addMessage(makeSystemMessage(
+                    "Usage: /requests [channel]. You can also use the command "
+                    "without arguments in any Twitch channel to open its "
+                    "channel points requests queue. Only the broadcaster and "
+                    "moderators have permission to view the queue."));
+                return "";
+            }
+        }
+
+        stripChannelName(target);
+        QDesktopServices::openUrl(
+            QUrl(QString("https://www.twitch.tv/popout/%1/reward-queue")
+                     .arg(target)));
+
         return "";
     });
 
@@ -819,6 +875,7 @@ void CommandController::initialize(Settings &, Paths &paths)
         }
         return "";
     });
+
     this->registerCommand("/setgame", [](const QStringList &words,
                                          const ChannelPtr channel) {
         if (words.size() < 2)
@@ -917,6 +974,7 @@ void CommandController::initialize(Settings &, Paths &paths)
 
         return "";
     });
+
     this->registerCommand(
         "/delete", [](const QStringList &words, ChannelPtr channel) -> QString {
             // This is a wrapper over the standard Twitch /delete command
@@ -959,6 +1017,7 @@ void CommandController::initialize(Settings &, Paths &paths)
         getApp()->twitch->sendRawMessage(words.mid(1).join(" "));
         return "";
     });
+
 #ifndef NDEBUG
     this->registerCommand(
         "/fakemsg",
@@ -975,6 +1034,19 @@ void CommandController::initialize(Settings &, Paths &paths)
             return "";
         });
 #endif
+
+    this->registerCommand(
+        "/copy", [](const QStringList &words, ChannelPtr channel) -> QString {
+            if (words.size() < 2)
+            {
+                channel->addMessage(
+                    makeSystemMessage("Usage: /copy <text> - copies provided "
+                                      "text to clipboard."));
+                return "";
+            }
+            crossPlatformCopy(words.mid(1).join(" "));
+            return "";
+        });
 }
 
 void CommandController::save()
@@ -994,7 +1066,7 @@ QString CommandController::execCommand(const QString &textNoEmoji,
                                        ChannelPtr channel, bool dryRun)
 {
     QString text = getApp()->emotes->emojis.replaceShortCodes(textNoEmoji);
-    QStringList words = text.split(' ', QString::SkipEmptyParts);
+    QStringList words = text.split(' ', Qt::SkipEmptyParts);
 
     if (words.length() == 0)
     {
@@ -1031,7 +1103,7 @@ QString CommandController::execCommand(const QString &textNoEmoji,
             text = getApp()->emotes->emojis.replaceShortCodes(
                 this->execCustomCommand(words, it.value(), dryRun, channel));
 
-            words = text.split(' ', QString::SkipEmptyParts);
+            words = text.split(' ', Qt::SkipEmptyParts);
 
             if (words.length() == 0)
             {

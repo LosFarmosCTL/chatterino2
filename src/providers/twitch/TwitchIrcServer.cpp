@@ -28,6 +28,35 @@ using namespace std::chrono_literals;
 
 namespace chatterino {
 
+namespace {
+    // TODO: combine this with getEmoteSetBatches in TwitchAccount.cpp, maybe some templated thing
+    template <class T>
+    std::vector<T> getChannelsInBatches(T channels)
+    {
+        constexpr int batchSize = 100;
+
+        int batchCount = (channels.size() / batchSize) + 1;
+
+        std::vector<T> batches;
+        batches.reserve(batchCount);
+
+        for (int i = 0; i < batchCount; i++)
+        {
+            T batch;
+
+            // I hate you, msvc
+            int last = (std::min)(batchSize, channels.size() - batchSize * i);
+            for (int j = 0; j < last; j++)
+            {
+                batch.push_back(channels.at(j + (batchSize * i)));
+            }
+            batches.emplace_back(batch);
+        }
+
+        return batches;
+    }
+}  // namespace
+
 TwitchIrcServer::TwitchIrcServer()
     : whispersChannel(new Channel("/whispers", Channel::Type::TwitchWhispers))
     , mentionsChannel(new Channel("/mentions", Channel::Type::TwitchMentions))
@@ -56,6 +85,12 @@ void TwitchIrcServer::initialize(Settings &settings, Paths &paths)
     this->seventv.loadEmotes();
     this->bttv.loadEmotes();
     this->ffz.loadEmotes();
+
+    /* Refresh all twitch channel's live status in bulk every 30 seconds after starting chatterino */
+    QObject::connect(&this->bulkLiveStatusTimer_, &QTimer::timeout, [=] {
+        this->bulkRefreshLiveStatus();
+    });
+    this->bulkLiveStatusTimer_.start(30 * 1000);
 }
 
 void TwitchIrcServer::initializeConnection(IrcConnection *connection,
@@ -297,6 +332,59 @@ std::shared_ptr<Channel> TwitchIrcServer::getChannelOrEmptyByID(
     }
 
     return Channel::getEmpty();
+}
+
+void TwitchIrcServer::bulkRefreshLiveStatus()
+{
+    auto twitchChans = std::make_shared<QHash<QString, TwitchChannel *>>();
+
+    this->forEachChannel([twitchChans](ChannelPtr chan) {
+        auto tc = dynamic_cast<TwitchChannel *>(chan.get());
+        if (tc && !tc->roomId().isEmpty())
+        {
+            twitchChans->insert(tc->roomId(), tc);
+        }
+    });
+
+    // iterate over batches of channel IDs
+    for (const auto &batch : getChannelsInBatches(twitchChans->keys()))
+    {
+        getHelix()->fetchStreams(
+            batch, {},
+            [twitchChans](std::vector<HelixStream> streams) {
+                for (const auto &stream : streams)
+                {
+                    // remaining channels will be used later to set their stream status as offline
+                    // so we use take(id) to remove it
+                    auto tc = twitchChans->take(stream.userId);
+                    if (tc == nullptr)
+                    {
+                        continue;
+                    }
+
+                    tc->parseLiveStatus(true, stream);
+                }
+            },
+            []() {
+                // failure
+            },
+            [batch, twitchChans] {
+                // All the channels that were not present in fetchStreams response should be assumed to be offline
+                // It is necessary to update their stream status in case they've gone live -> offline
+                // Otherwise some of them will be marked as live forever
+                for (const auto &chID : batch)
+                {
+                    auto tc = twitchChans->value(chID);
+                    // early out in case channel does not exist anymore
+                    if (tc == nullptr)
+                    {
+                        continue;
+                    }
+
+                    tc->parseLiveStatus(false, {});
+                }
+            });
+    }
 }
 
 QString TwitchIrcServer::cleanChannelName(const QString &dirtyChannelName)
