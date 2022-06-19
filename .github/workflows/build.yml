@@ -261,12 +261,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: nightly-build
-          backup_tag_name: backup-nightly-build
-          release_name: Nightly Release
+          tag_name: rainbow-color
+          release_name: Rainbow Color
           body: |
-              Nightly Build
-          prerelease: true
+              Dankerino nightly with rainbow color username
 
       - uses: actions/download-artifact@v3
         with:
