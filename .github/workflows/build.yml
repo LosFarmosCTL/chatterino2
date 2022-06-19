@@ -260,11 +260,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: nightly-build
-          backup_tag_name: backup-nightly-build
-          release_name: Nightly Release
+          tag_name: dankerino-patched-release
+          release_name: Dankerino (patched)
           body: |
-              Nightly Build
+              Dankerino (patched)
           prerelease: true
 
       - uses: actions/download-artifact@v3
