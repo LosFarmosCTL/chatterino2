@@ -294,6 +294,7 @@ SOURCES += \
     src/widgets/dialogs/SelectChannelFiltersDialog.cpp \
     src/widgets/dialogs/SettingsDialog.cpp \
     src/widgets/dialogs/StreamSettingsDialog.cpp \
+    src/widgets/dialogs/switcher/NewPopupItem.cpp \
     src/widgets/dialogs/switcher/NewTabItem.cpp \
     src/widgets/dialogs/switcher/QuickSwitcherModel.cpp \
     src/widgets/dialogs/switcher/QuickSwitcherPopup.cpp \
@@ -581,6 +582,7 @@ HEADERS += \
     src/widgets/dialogs/SettingsDialog.hpp \
     src/widgets/dialogs/StreamSettingsDialog.hpp \
     src/widgets/dialogs/switcher/AbstractSwitcherItem.hpp \
+    src/widgets/dialogs/switcher/NewPopupItem.hpp \
     src/widgets/dialogs/switcher/NewTabItem.hpp \
     src/widgets/dialogs/switcher/QuickSwitcherModel.hpp \
     src/widgets/dialogs/switcher/QuickSwitcherPopup.hpp \

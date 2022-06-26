@@ -390,7 +390,7 @@ void ChannelView::performLayout(bool causedByScrollbar)
     // BenchmarkGuard benchmark("layout");
 
     /// Get messages and check if there are at least 1
-    auto messages = this->getMessagesSnapshot();
+    auto &messages = this->getMessagesSnapshot();
 
     this->showingLatestMessages_ =
         this->scrollBar_->isAtBottom() || !this->scrollBar_->isVisible();
@@ -511,7 +511,7 @@ QString ChannelView::getSelectedText()
 {
     QString result = "";
 
-    LimitedQueueSnapshot<MessageLayoutPtr> messagesSnapshot =
+    LimitedQueueSnapshot<MessageLayoutPtr> &messagesSnapshot =
         this->getMessagesSnapshot();
 
     Selection _selection = this->selection_;
@@ -570,7 +570,7 @@ const boost::optional<MessageElementFlags> &ChannelView::getOverrideFlags()
     return this->overrideFlags_;
 }
 
-LimitedQueueSnapshot<MessageLayoutPtr> ChannelView::getMessagesSnapshot()
+LimitedQueueSnapshot<MessageLayoutPtr> &ChannelView::getMessagesSnapshot()
 {
     if (!this->paused() /*|| this->scrollBar_->isVisible()*/)
     {
@@ -691,11 +691,9 @@ void ChannelView::setChannel(ChannelPtr underlyingChannel)
 
     auto snapshot = underlyingChannel->getMessageSnapshot();
 
-    for (size_t i = 0; i < snapshot.size(); i++)
+    for (const auto &msg : snapshot)
     {
-        MessageLayoutPtr deleted;
-
-        auto messageLayout = new MessageLayout(snapshot[i]);
+        auto messageLayout = new MessageLayout(msg);
 
         if (this->lastMessageHasAlternateBackground_)
         {
@@ -709,11 +707,10 @@ void ChannelView::setChannel(ChannelPtr underlyingChannel)
             messageLayout->flags.set(MessageLayoutFlag::IgnoreHighlights);
         }
 
-        this->messages_.pushBack(MessageLayoutPtr(messageLayout), deleted);
+        this->messages_.pushBack(MessageLayoutPtr(messageLayout));
         if (this->showScrollbarHighlights())
         {
-            this->scrollBar_->addHighlight(
-                snapshot[i]->getScrollBarHighlight());
+            this->scrollBar_->addHighlight(msg->getScrollBarHighlight());
         }
     }
 
@@ -785,8 +782,6 @@ bool ChannelView::hasSourceChannel() const
 void ChannelView::messageAppended(MessagePtr &message,
                                   boost::optional<MessageFlags> overridingFlags)
 {
-    MessageLayoutPtr deleted;
-
     auto *messageFlags = &message->flags;
     if (overridingFlags)
     {
@@ -818,7 +813,7 @@ void ChannelView::messageAppended(MessagePtr &message,
         loop.exec();
     }
 
-    if (this->messages_.pushBack(MessageLayoutPtr(messageRef), deleted))
+    if (this->messages_.pushBack(MessageLayoutPtr(messageRef)))
     {
         if (this->paused())
         {
@@ -924,22 +919,16 @@ void ChannelView::messageRemoveFromStart(MessagePtr &message)
 
 void ChannelView::messageReplaced(size_t index, MessagePtr &replacement)
 {
-    if (index >= this->messages_.getSnapshot().size())
+    auto oMessage = this->messages_.get(index);
+    if (!oMessage)
     {
         return;
     }
+
+    auto message = *oMessage;
 
     MessageLayoutPtr newItem(new MessageLayout(replacement));
-    auto snapshot = this->messages_.getSnapshot();
-    if (index >= snapshot.size())
-    {
-        qCDebug(chatterinoWidget)
-            << "Tried to replace out of bounds message. Index:" << index
-            << ". Length:" << snapshot.size();
-        return;
-    }
 
-    const auto &message = snapshot[index];
     if (message->flags.has(MessageLayoutFlag::AlternateBackground))
     {
         newItem->flags.set(MessageLayoutFlag::AlternateBackground);
@@ -954,11 +943,9 @@ void ChannelView::messageReplaced(size_t index, MessagePtr &replacement)
 
 void ChannelView::updateLastReadMessage()
 {
-    auto _snapshot = this->getMessagesSnapshot();
-
-    if (_snapshot.size() > 0)
+    if (auto lastMessage = this->messages_.last())
     {
-        this->lastReadMessage_ = _snapshot[_snapshot.size() - 1];
+        this->lastReadMessage_ = *lastMessage;
     }
 
     this->update();
@@ -1064,7 +1051,7 @@ void ChannelView::paintEvent(QPaintEvent * /*event*/)
 // such as the grey overlay when a message is disabled
 void ChannelView::drawMessages(QPainter &painter)
 {
-    auto messagesSnapshot = this->getMessagesSnapshot();
+    auto &messagesSnapshot = this->getMessagesSnapshot();
 
     size_t start = size_t(this->scrollBar_->getCurrentValue());
 
@@ -1131,7 +1118,7 @@ void ChannelView::drawMessages(QPainter &painter)
     // add all messages on screen to the map
     for (size_t i = start; i < messagesSnapshot.size(); ++i)
     {
-        std::shared_ptr<MessageLayout> layout = messagesSnapshot[i];
+        const std::shared_ptr<MessageLayout> &layout = messagesSnapshot[i];
 
         this->messagesOnScreen_.insert(layout);
 
@@ -1162,7 +1149,7 @@ void ChannelView::wheelEvent(QWheelEvent *event)
         qreal desired = this->scrollBar_->getDesiredValue();
         qreal delta = event->angleDelta().y() * qreal(1.5) * mouseMultiplier;
 
-        auto snapshot = this->getMessagesSnapshot();
+        auto &snapshot = this->getMessagesSnapshot();
         int snapshotLength = int(snapshot.size());
         int i = std::min<int>(int(desired), snapshotLength);
 
@@ -1562,7 +1549,7 @@ void ChannelView::mousePressEvent(QMouseEvent *event)
     if (!tryGetMessageAt(event->pos(), layout, relativePos, messageIndex))
     {
         setCursor(Qt::ArrowCursor);
-        auto messagesSnapshot = this->getMessagesSnapshot();
+        auto &messagesSnapshot = this->getMessagesSnapshot();
         if (messagesSnapshot.size() == 0)
         {
             return;
@@ -2148,20 +2135,12 @@ void ChannelView::addCommandExecutionContextMenuItems(
             {
                 userText = split->getInput().getInputText();
             }
+
+            // Execute command through right-clicking a message -> Execute command
             QString value = getApp()->commands->execCustomCommand(
-                inputText.split(' '), cmd, true, channel,
+                inputText.split(' '), cmd, true, channel, layout->getMessage(),
                 {
-                    {"user.name", layout->getMessage()->loginName},
-                    {"msg.id", layout->getMessage()->id},
-                    {"msg.text", layout->getMessage()->messageText},
                     {"input.text", userText},
-
-                    // old placeholders
-                    {"user", layout->getMessage()->loginName},
-                    {"msg-id", layout->getMessage()->id},
-                    {"message", layout->getMessage()->messageText},
-
-                    {"channel", this->channel()->getName()},
                 });
 
             value = getApp()->commands->execCommand(value, channel, false);
@@ -2306,21 +2285,10 @@ void ChannelView::handleLinkClick(QMouseEvent *event, const Link &link,
                 }
             }
 
+            // Execute command clicking a moderator button
             value = getApp()->commands->execCustomCommand(
                 QStringList(), Command{"(modaction)", value}, true, channel,
-                {
-                    {"user.name", layout->getMessage()->loginName},
-                    {"msg.id", layout->getMessage()->id},
-                    {"msg.text", layout->getMessage()->messageText},
-
-                    // old placeholders
-                    {"user", layout->getMessage()->loginName},
-                    {"msg-id", layout->getMessage()->id},
-                    {"message", layout->getMessage()->messageText},
-
-                    // new version of this is inside execCustomCommand
-                    {"channel", this->channel()->getName()},
-                });
+                layout->getMessage());
 
             value = getApp()->commands->execCommand(value, channel, false);
 
@@ -2397,7 +2365,7 @@ bool ChannelView::tryGetMessageAt(QPoint p,
                                   std::shared_ptr<MessageLayout> &_message,
                                   QPoint &relativePos, int &index)
 {
-    auto messagesSnapshot = this->getMessagesSnapshot();
+    auto &messagesSnapshot = this->getMessagesSnapshot();
 
     size_t start = this->scrollBar_->getCurrentValue();
 
