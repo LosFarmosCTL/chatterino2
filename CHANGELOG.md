@@ -6,6 +6,7 @@
 ### Dankerino
 - Minor: Added a link to the upstream commit (Mm2PL/Dankerino#127)
 - Minor: Added RaccAttack URL to Twitch Emote context menu (Mm2PL/Dankerino#122)
+- Minor: Added a warning to not send bug reports to upstream (Mm2PL/Dankerino#128)
 
 ### Chatterino
 - Major: Added multi-channel searching to search dialog via keyboard shortcut. [Ctrl+Shift+F by default] (#3694)
@@ -29,6 +30,7 @@
 - Minor: Added `/copy` command. Usage: `/copy <text>`. Copies provided text to clipboard - can be useful with custom commands. (#3763)
 - Minor: Removed total views from the usercard, as Twitch no longer updates the number. (#3792)
 - Minor: Add Quick Switcher item to open a channel in a new popup window. (#3828)
+- Bugfix: Fix crash that can occur when closing and quickly reopening a split, then running a command. (#3852)
 - Bugfix: Connection to Twitch PubSub now recovers more reliably. (#3643, #3716)
 - Bugfix: Fix crash that can occur when changing channels. (#3799)
 - Bugfix: Fixed viewers list search not working when used before loading finishes. (#3774)
@@ -46,6 +48,7 @@
 - Bugfix: Add icon in the CMake macOS bundle. (#3832)
 - Bugfix: Adopt popup windows in order to force floating behavior on some window managers. (#3836)
 - Bugfix: Fix split focusing being broken in certain circumstances when the "Show input when it's empty" setting was disabled. (#3838)
+- Bugfix: Always refresh tab when a contained split's channel is set. (#3849)
 - Dev: Rewrite LimitedQueue (#3798)
 - Dev: Overhaul highlight system by moving all checks into a Controller allowing for easier tests. (#3399, #3801, #3835)
 - Dev: Use Game Name returned by Get Streams instead of querying it from the Get Games API. (#3662)
@@ -103,6 +106,7 @@
 - Minor: Made join and part message have links to usercards. (#3358)
 - Minor: Show picked outcome in prediction badges. (#3357)
 - Minor: Add support for Emoji in IRC (#3354)
+- Minor: Added logging to experimental IRC (#2996)
 - Minor: Moved `/live` logs to its own subdirectory. (Logs from before this change will still be available in `Channels -> live`). (#3393)
 - Minor: Added clear button to settings search bar. (#3403)
 - Minor: Added autocompletion for default Twitch commands starting with the dot (e.g. `.mods` which does the same as `/mods`). (#3144)
