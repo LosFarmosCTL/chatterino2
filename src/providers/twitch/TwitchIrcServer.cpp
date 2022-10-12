@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include "Application.hpp"
+#include "BaseSettings.hpp"
 #include "common/Common.hpp"
 #include "common/Env.hpp"
 #include "common/QLogging.hpp"
@@ -420,7 +421,8 @@ bool TwitchIrcServer::prepareToSend(TwitchChannel *channel)
                           ? maxMessageCount / 2
                           : maxMessageCount;
 
-    if (lastMessage.size() >= maxMessageCount)
+    if (!getSettings()->ignoreMaxMessageRateLimit &&
+        (lastMessage.size() >= maxMessageCount))
     {
         if (this->lastErrorTimeAmount_ + 30s < now)
         {

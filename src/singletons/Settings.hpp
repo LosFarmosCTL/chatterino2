@@ -465,6 +465,8 @@ public:
         "/misc/twitch/lowRateLimitDelay",
         1100,
     };
+    BoolSetting ignoreMaxMessageRateLimit = {
+        "/misc/twitch/ignoreMaxMessageRateLimit", false};
     BoolSetting abnormalNonceDetection = {"/misc/abnormalNonceDetection",
                                           false};
     BoolSetting normalNonceDetection = {"/misc/normalNonceDetection", false};
