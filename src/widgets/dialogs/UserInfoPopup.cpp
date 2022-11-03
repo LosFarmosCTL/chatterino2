@@ -105,9 +105,13 @@ namespace {
         for (size_t i = 0; i < snapshot.size(); i++)
         {
             MessagePtr message = snapshot[i];
+
+            auto overrideFlags = boost::optional<MessageFlags>(message->flags);
+            overrideFlags->set(MessageFlag::DoNotLog);
+
             if (checkMessageUserName(userName, message))
             {
-                channelPtr->addMessage(message);
+                channelPtr->addMessage(message, overrideFlags);
             }
         }
 
@@ -998,12 +1002,6 @@ void UserInfoPopup::loadAvatar(const HelixUser &user)
 
 void UserInfoPopup::fetchSevenTVAvatar(const HelixUser &user)
 {
-    if (!getSettings()->enableLoadingSevenTV)
-    {
-        // ignore seventv request
-        return;
-    }
-
     NetworkRequest(SEVENTV_USER_API.arg(user.login))
         .timeout(20000)
         .header("Content-Type", "application/json")

@@ -1,6 +1,8 @@
 #include "DankerinoPage.hpp"
 
 #include <QFontDialog>
+#include <QFormLayout>
+#include <QGroupBox>
 #include <QLabel>
 #include <QScrollArea>
 
@@ -50,8 +52,18 @@ void DankerinoPage::initLayout(GeneralPageView &layout)
     layout.addTitle("Behavior");
     layout.addCheckbox("Lowercase tab-completed usernames",
                        s.lowercaseUsernames);
-    layout.addTitle("Emotes");
-    layout.addCheckbox("Enable loading 7TV emotes", s.enableLoadingSevenTV);
+    {
+        auto *groupLayout = new QFormLayout();
+        auto *lineEdit = this->createLineEdit(s.bridgeUser);
+        groupLayout->addRow(
+            this->createCheckBox("Allow \"bridge\" users to impersonate others",
+                                 s.allowBridgeImpersonation));
+        lineEdit->setPlaceholderText("supabridge");
+        groupLayout->addRow("Bridge user:", lineEdit);
+        layout.addLayout(groupLayout);
+    }
+    //layout.addTitle("Emotes");
+    //layout.addCheckbox("Enable loading 7TV emotes", s.enableLoadingSevenTV);
     layout.addTitle("Miscellaneous");
     layout.addIntInput("High rate limit spam delay in milliseconds (mod/vip)",
                        s.twitchHighRateLimitDelay, 100, 2000, 100);
@@ -71,10 +83,10 @@ void DankerinoPage::initLayout(GeneralPageView &layout)
         layout.addCheckbox("Abnormal nonce detection",
                            s.abnormalNonceDetection);
 
-        layout.addCheckbox(
-            "Webchat detection highlights. Highlights messages sent from "
-            "webchat in orange or the specified color below.",
-            s.normalNonceDetection);
+        layout.addCheckbox("Webchat detection highlights. ",
+                           s.normalNonceDetection, false,
+                           "Highlights messages sent from webchat in orange or "
+                           "the specified color below.");
 
         layout.addColorButton("Webchat detected color",
                               QColor(getSettings()->webchatColor.getValue()),
