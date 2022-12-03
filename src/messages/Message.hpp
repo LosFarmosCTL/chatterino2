@@ -5,8 +5,9 @@
 #include "util/QStringHash.hpp"
 #include "widgets/helper/ScrollbarHighlight.hpp"
 
-#include <QTime>
 #include <boost/noncopyable.hpp>
+#include <QTime>
+
 #include <cinttypes>
 #include <memory>
 #include <vector>
@@ -45,7 +46,10 @@ enum class MessageFlag : int64_t {
     ElevatedMessage = (1LL << 25),
     ParticipatedThread = (1LL << 26),
     CheerMessage = (1LL << 27),
-    WebchatDetected = (1LL << 28),
+    LiveUpdatesAdd = (1LL << 28),
+    LiveUpdatesRemove = (1LL << 29),
+    LiveUpdatesUpdate = (1LL << 30),
+    WebchatDetected = (1LL << 31),
 };
 
 using MessageFlags = FlagsEnum<MessageFlag>;
