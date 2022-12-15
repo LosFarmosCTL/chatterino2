@@ -1,11 +1,4 @@
-#include <QApplication>
-#include <QCommandLineParser>
-#include <QMessageBox>
-#include <QStringList>
-#include <memory>
-
 #include "BrowserExtension.hpp"
-#include "RunGui.hpp"
 #include "common/Args.hpp"
 #include "common/Modes.hpp"
 #include "common/QLogging.hpp"
@@ -13,10 +6,18 @@
 #include "providers/IvrApi.hpp"
 #include "providers/twitch/api/Helix.hpp"
 #include "providers/twitch/api/Kraken.hpp"
+#include "RunGui.hpp"
 #include "singletons/Paths.hpp"
 #include "singletons/Settings.hpp"
 #include "util/AttachToConsole.hpp"
 #include "util/IncognitoBrowser.hpp"
+
+#include <QApplication>
+#include <QCommandLineParser>
+#include <QMessageBox>
+#include <QStringList>
+
+#include <memory>
 
 using namespace chatterino;
 

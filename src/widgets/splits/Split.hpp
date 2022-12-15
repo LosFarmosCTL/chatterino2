@@ -6,11 +6,11 @@
 #include "pajlada/signals/signalholder.hpp"
 #include "widgets/BaseWidget.hpp"
 
+#include <boost/signals2.hpp>
 #include <QFont>
 #include <QShortcut>
 #include <QVBoxLayout>
 #include <QWidget>
-#include <boost/signals2.hpp>
 
 namespace chatterino {
 
@@ -169,7 +169,6 @@ public slots:
     void openInStreamlink();
     void openStreamSettingsEditor();
     void openWithCustomScheme();
-    void copyToClipboard();
     void startWatching();
     void setFiltersDialog();
     void showSearch(bool singleChannel);

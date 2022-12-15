@@ -1,6 +1,5 @@
 #include "TooltipWidget.hpp"
 
-#include "BaseTheme.hpp"
 #include "singletons/Fonts.hpp"
 
 #include <QDebug>
@@ -23,7 +22,9 @@ TooltipWidget *TooltipWidget::instance()
 }
 
 TooltipWidget::TooltipWidget(BaseWidget *parent)
-    : BaseWindow({BaseWindow::TopMost, BaseWindow::DontFocus}, parent)
+    : BaseWindow({BaseWindow::TopMost, BaseWindow::DontFocus,
+                  BaseWindow::DisableLayoutSave},
+                 parent)
     , displayImage_(new QLabel())
     , displayText_(new QLabel())
 {

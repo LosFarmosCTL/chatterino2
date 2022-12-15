@@ -22,10 +22,6 @@
 #include "util/Helpers.hpp"
 #include "util/NuulsUploader.hpp"
 #include "util/StreamLink.hpp"
-#include "widgets/Notebook.hpp"
-#include "widgets/Scrollbar.hpp"
-#include "widgets/TooltipWidget.hpp"
-#include "widgets/Window.hpp"
 #include "widgets/dialogs/QualityPopup.hpp"
 #include "widgets/dialogs/SelectChannelDialog.hpp"
 #include "widgets/dialogs/SelectChannelFiltersDialog.hpp"
@@ -36,10 +32,14 @@
 #include "widgets/helper/NotebookTab.hpp"
 #include "widgets/helper/ResizingTextEdit.hpp"
 #include "widgets/helper/SearchPopup.hpp"
+#include "widgets/Notebook.hpp"
+#include "widgets/Scrollbar.hpp"
 #include "widgets/splits/SplitContainer.hpp"
 #include "widgets/splits/SplitHeader.hpp"
 #include "widgets/splits/SplitInput.hpp"
 #include "widgets/splits/SplitOverlay.hpp"
+#include "widgets/TooltipWidget.hpp"
+#include "widgets/Window.hpp"
 
 #include <QApplication>
 #include <QClipboard>
@@ -87,7 +87,8 @@ Split::Split(QWidget *parent)
     , channel_(Channel::getEmpty())
     , vbox_(new QVBoxLayout(this))
     , header_(new SplitHeader(this))
-    , view_(new ChannelView(this, this))
+    , view_(new ChannelView(this, this, ChannelView::Context::None,
+                            getSettings()->scrollbackSplitLimit))
     , input_(new SplitInput(this))
     , overlay_(new SplitOverlay(this))
 {
@@ -97,7 +98,7 @@ Split::Split(QWidget *parent)
     this->setFocusProxy(this->input_->ui_.textEdit);
 
     this->vbox_->setSpacing(0);
-    this->vbox_->setMargin(1);
+    this->vbox_->setContentsMargins(1, 1, 1, 1);
 
     this->vbox_->addWidget(this->header_);
     this->vbox_->addWidget(this->view_, 1);
@@ -115,10 +116,19 @@ Split::Split(QWidget *parent)
     });
     this->updateInputPlaceholder();
 
+    // clear SplitInput selection when selecting in ChannelView
     this->view_->selectionChanged.connect([this]() {
-        if (view_->hasSelection())
+        if (this->input_->hasSelection())
         {
             this->input_->clearSelection();
+        }
+    });
+
+    // clear ChannelView selection when selecting in SplitInput
+    this->input_->selectionChanged.connect([this]() {
+        if (this->view_->hasSelection())
+        {
+            this->view_->clearSelection();
         }
     });
 
@@ -1139,11 +1149,6 @@ void Split::openSubPage()
     {
         QDesktopServices::openUrl(twitchChannel->subscriptionUrl());
     }
-}
-
-void Split::copyToClipboard()
-{
-    crossPlatformCopy(this->view_->getSelectedText());
 }
 
 void Split::startWatching()

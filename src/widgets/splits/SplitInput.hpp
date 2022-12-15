@@ -11,6 +11,7 @@
 #include <QTextEdit>
 #include <QVBoxLayout>
 #include <QWidget>
+
 #include <memory>
 
 namespace chatterino {
@@ -21,6 +22,20 @@ class InputCompletionPopup;
 class EffectLabel;
 class MessageThread;
 class ResizingTextEdit;
+class ChannelView;
+
+// MessageOverflow is used for controlling how to guide the user into not
+// sending a message that will be discarded by Twitch
+enum MessageOverflow {
+    // Allow overflowing characters to be inserted into the input box, but highlight them in red
+    Highlight,
+
+    // Prevent more characters from being inserted into the input box
+    Prevent,
+
+    // Do nothing
+    Allow,
+};
 
 class SplitInput : public BaseWidget
 {
@@ -28,10 +43,12 @@ class SplitInput : public BaseWidget
 
 public:
     SplitInput(Split *_chatWidget, bool enableInlineReplying = true);
-    SplitInput(QWidget *parent, Split *_chatWidget,
+    SplitInput(QWidget *parent, Split *_chatWidget, ChannelView *_channelView,
                bool enableInlineReplying = true);
 
-    void clearSelection();
+    bool hasSelection() const;
+    void clearSelection() const;
+
     bool isEditFirstWord() const;
     QString getInputText() const;
     void insertText(const QString &text);
@@ -64,6 +81,7 @@ public:
     bool isHidden() const;
 
     pajlada::Signals::Signal<const QString &> textChanged;
+    pajlada::Signals::NoArgSignal selectionChanged;
 
 protected:
     void scaleChangedEvent(float scale_) override;
@@ -71,6 +89,8 @@ protected:
 
     void paintEvent(QPaintEvent * /*event*/) override;
     void resizeEvent(QResizeEvent * /*event*/) override;
+
+    void mousePressEvent(QMouseEvent *event) override;
 
     virtual void giveFocus(Qt::FocusReason reason);
 
@@ -101,7 +121,12 @@ protected:
     // This does not take hidden into account, so callers must take hidden into account themselves
     int scaledMaxHeight() const;
 
+    // Returns true if the channel this input is connected to is a Twitch channel,
+    // the user's setting is set to Prevent, and the given text goes beyond the Twitch message length limit
+    bool shouldPreventInput(const QString &text) const;
+
     Split *const split_;
+    ChannelView *const channelView_;
     QObjectRef<EmotePopup> emotePopup_;
     QObjectRef<InputCompletionPopup> inputCompletionPopup_;
 

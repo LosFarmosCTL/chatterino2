@@ -1,22 +1,5 @@
 #include "ChannelView.hpp"
 
-#include <QClipboard>
-#include <QColor>
-#include <QDate>
-#include <QDebug>
-#include <QDesktopServices>
-#include <QEasingCurve>
-#include <QGraphicsBlurEffect>
-#include <QMessageBox>
-#include <QPainter>
-#include <QScreen>
-#include <QVariantAnimation>
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <functional>
-#include <memory>
-
 #include "Application.hpp"
 #include "common/Common.hpp"
 #include "common/QLogging.hpp"
@@ -24,12 +7,12 @@
 #include "controllers/commands/CommandController.hpp"
 #include "debug/Benchmark.hpp"
 #include "messages/Emote.hpp"
+#include "messages/layouts/MessageLayout.hpp"
+#include "messages/layouts/MessageLayoutElement.hpp"
 #include "messages/LimitedQueueSnapshot.hpp"
 #include "messages/Message.hpp"
 #include "messages/MessageBuilder.hpp"
 #include "messages/MessageElement.hpp"
-#include "messages/layouts/MessageLayout.hpp"
-#include "messages/layouts/MessageLayoutElement.hpp"
 #include "providers/LinkResolver.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
@@ -44,16 +27,34 @@
 #include "util/IncognitoBrowser.hpp"
 #include "util/StreamerMode.hpp"
 #include "util/Twitch.hpp"
-#include "widgets/Scrollbar.hpp"
-#include "widgets/TooltipWidget.hpp"
-#include "widgets/Window.hpp"
 #include "widgets/dialogs/ReplyThreadPopup.hpp"
 #include "widgets/dialogs/SettingsDialog.hpp"
 #include "widgets/dialogs/UserInfoPopup.hpp"
 #include "widgets/helper/EffectLabel.hpp"
 #include "widgets/helper/SearchPopup.hpp"
+#include "widgets/Scrollbar.hpp"
 #include "widgets/splits/Split.hpp"
 #include "widgets/splits/SplitInput.hpp"
+#include "widgets/TooltipWidget.hpp"
+#include "widgets/Window.hpp"
+
+#include <QClipboard>
+#include <QColor>
+#include <QDate>
+#include <QDebug>
+#include <QDesktopServices>
+#include <QEasingCurve>
+#include <QGraphicsBlurEffect>
+#include <QMessageBox>
+#include <QPainter>
+#include <QScreen>
+#include <QVariantAnimation>
+
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <functional>
+#include <memory>
 
 #define DRAW_WIDTH (this->width())
 #define SELECTION_RESUME_SCROLLING_MSG_THRESHOLD 3
@@ -142,12 +143,14 @@ namespace {
     }
 }  // namespace
 
-ChannelView::ChannelView(BaseWidget *parent, Split *split, Context context)
+ChannelView::ChannelView(BaseWidget *parent, Split *split, Context context,
+                         size_t messagesLimit)
     : BaseWidget(parent)
     , split_(split)
     , scrollBar_(new Scrollbar(this))
     , highlightAnimation_(this)
     , context_(context)
+    , messages_(messagesLimit)
 {
     this->setMouseTracking(true);
 
@@ -168,9 +171,13 @@ ChannelView::ChannelView(BaseWidget *parent, Split *split, Context context)
         this->updatePauses();
     });
 
+    // This shortcut is not used in splits, it's used in views that
+    // don't have a SplitInput like the SearchPopup or EmotePopup.
+    // See SplitInput::installKeyPressedEvent for the copy event
+    // from views with a SplitInput.
     auto shortcut = new QShortcut(QKeySequence::StandardKey::Copy, this);
     QObject::connect(shortcut, &QShortcut::activated, [this] {
-        crossPlatformCopy(this->getSelectedText());
+        this->copySelectedText();
     });
 
     this->clickTimer_ = new QTimer(this);
@@ -356,10 +363,7 @@ void ChannelView::updatePauses()
 void ChannelView::unpaused()
 {
     /// Move selection
-    this->selection_.selectionMin.messageIndex -= this->pauseSelectionOffset_;
-    this->selection_.selectionMax.messageIndex -= this->pauseSelectionOffset_;
-    this->selection_.start.messageIndex -= this->pauseSelectionOffset_;
-    this->selection_.end.messageIndex -= this->pauseSelectionOffset_;
+    this->selection_.shiftMessageIndex(this->pauseSelectionOffset_);
 
     this->pauseSelectionOffset_ = 0;
 }
@@ -427,7 +431,7 @@ void ChannelView::performLayout(bool causedByScrollbar)
     // BenchmarkGuard benchmark("layout");
 
     /// Get messages and check if there are at least 1
-    auto &messages = this->getMessagesSnapshot();
+    const auto &messages = this->getMessagesSnapshot();
 
     this->showingLatestMessages_ =
         this->scrollBar_->isAtBottom() ||
@@ -445,7 +449,7 @@ void ChannelView::performLayout(bool causedByScrollbar)
 }
 
 void ChannelView::layoutVisibleMessages(
-    LimitedQueueSnapshot<MessageLayoutPtr> &messages)
+    const LimitedQueueSnapshot<MessageLayoutPtr> &messages)
 {
     const auto start = size_t(this->scrollBar_->getCurrentValue());
     const auto layoutWidth = this->getLayoutWidth();
@@ -459,7 +463,7 @@ void ChannelView::layoutVisibleMessages(
 
         for (auto i = start; i < messages.size() && y <= this->height(); i++)
         {
-            auto message = messages[i];
+            const auto &message = messages[i];
 
             redrawRequired |=
                 message->layout(layoutWidth, this->scale(), flags);
@@ -469,11 +473,14 @@ void ChannelView::layoutVisibleMessages(
     }
 
     if (redrawRequired)
+    {
         this->queueUpdate();
+    }
 }
 
 void ChannelView::updateScrollbar(
-    LimitedQueueSnapshot<MessageLayoutPtr> &messages, bool causedByScrollbar)
+    const LimitedQueueSnapshot<MessageLayoutPtr> &messages,
+    bool causedByScrollbar)
 {
     if (messages.size() == 0)
     {
@@ -553,23 +560,32 @@ QString ChannelView::getSelectedText()
     LimitedQueueSnapshot<MessageLayoutPtr> &messagesSnapshot =
         this->getMessagesSnapshot();
 
-    Selection _selection = this->selection_;
+    Selection selection = this->selection_;
 
-    if (_selection.isEmpty())
+    if (selection.isEmpty())
     {
         return result;
     }
 
-    for (int msg = _selection.selectionMin.messageIndex;
-         msg <= _selection.selectionMax.messageIndex; msg++)
+    const auto numMessages = messagesSnapshot.size();
+    const auto indexStart = selection.selectionMin.messageIndex;
+    const auto indexEnd = selection.selectionMax.messageIndex;
+
+    if (indexEnd >= numMessages || indexStart >= numMessages)
+    {
+        // One of our messages is out of bounds
+        return result;
+    }
+
+    for (auto msg = indexStart; msg <= indexEnd; msg++)
     {
         MessageLayoutPtr layout = messagesSnapshot[msg];
-        int from = msg == _selection.selectionMin.messageIndex
-                       ? _selection.selectionMin.charIndex
-                       : 0;
-        int to = msg == _selection.selectionMax.messageIndex
-                     ? _selection.selectionMax.charIndex
-                     : layout->getLastCharacterIndex() + 1;
+        auto from = msg == selection.selectionMin.messageIndex
+                        ? selection.selectionMin.charIndex
+                        : 0;
+        auto to = msg == selection.selectionMax.messageIndex
+                      ? selection.selectionMax.charIndex
+                      : layout->getLastCharacterIndex() + 1;
 
         layout->addSelectionText(result, from, to);
     }
@@ -586,6 +602,11 @@ void ChannelView::clearSelection()
 {
     this->selection_ = Selection();
     queueLayout();
+}
+
+void ChannelView::copySelectedText()
+{
+    crossPlatformCopy(this->getSelectedText());
 }
 
 void ChannelView::setEnableScrollingToBottom(bool value)
@@ -964,10 +985,7 @@ void ChannelView::messageRemoveFromStart(MessagePtr &message)
     }
     else
     {
-        this->selection_.selectionMin.messageIndex--;
-        this->selection_.selectionMax.messageIndex--;
-        this->selection_.start.messageIndex--;
-        this->selection_.end.messageIndex--;
+        this->selection_.shiftMessageIndex(1);
     }
 
     this->queueLayout();
@@ -1114,9 +1132,11 @@ MessageElementFlags ChannelView::getFlags() const
     if (this->sourceChannel_ == app->twitch->mentionsChannel)
         flags.set(MessageElementFlag::ChannelName);
 
-    if (this->context_ == Context::ReplyThread)
+    if (this->context_ == Context::ReplyThread ||
+        getSettings()->hideReplyContext)
     {
         // Don't show inline replies within the ReplyThreadPopup
+        // or if they're hidden
         flags.unset(MessageElementFlag::RepliedMessage);
     }
 
@@ -1994,16 +2014,17 @@ void ChannelView::handleMouseClick(QMouseEvent *event,
         }
         break;
         case Qt::RightButton: {
-            auto split = dynamic_cast<Split *>(this->parentWidget());
-            auto insertText = [=](QString text) {
-                if (split)
-                {
-                    split->insertTextToInput(text);
-                }
-            };
-
-            if (hoveredElement != nullptr)
+            // insert user mention to input, only in default context
+            if ((this->context_ == Context::None) &&
+                (hoveredElement != nullptr))
             {
+                auto split = dynamic_cast<Split *>(this->parentWidget());
+                auto insertText = [=](QString text) {
+                    if (split)
+                    {
+                        split->insertTextToInput(text);
+                    }
+                };
                 const auto &link = hoveredElement->getLink();
 
                 if (link.type == Link::UserInfo)

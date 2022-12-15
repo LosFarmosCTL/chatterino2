@@ -1,8 +1,5 @@
 #pragma once
 
-#include <pajlada/settings/setting.hpp>
-#include <pajlada/settings/settinglistener.hpp>
-
 #include "BaseSettings.hpp"
 #include "common/Channel.hpp"
 #include "common/SignalVector.hpp"
@@ -14,6 +11,10 @@
 #include "singletons/Toasts.hpp"
 #include "util/StreamerMode.hpp"
 #include "widgets/Notebook.hpp"
+#include "widgets/splits/SplitInput.hpp"
+
+#include <pajlada/settings/setting.hpp>
+#include <pajlada/settings/settinglistener.hpp>
 
 using TimeoutButton = std::pair<QString, int>;
 
@@ -100,9 +101,10 @@ public:
         "/appearance/showTextInputPlaceholder", true};
     BoolSetting showMessageLength = {"/appearance/messages/showMessageLength",
                                      false};
+    EnumSetting<MessageOverflow> messageOverflow = {
+        "/appearance/messages/messageOverflow", MessageOverflow::Highlight};
     BoolSetting separateMessages = {"/appearance/messages/separateMessages",
                                     false};
-    BoolSetting compactEmotes = {"/appearance/messages/compactEmotes", true};
     BoolSetting hideModerated = {"/appearance/messages/hideModerated", false};
     BoolSetting hideModerationActions = {
         "/appearance/messages/hideModerationActions", false};
@@ -121,6 +123,7 @@ public:
 
     //    BoolSetting collapseLongMessages =
     //    {"/appearance/messages/collapseLongMessages", false};
+    BoolSetting hideReplyContext = {"/appearance/hideReplyContext", false};
     BoolSetting showReplyButton = {"/appearance/showReplyButton", false};
     BoolSetting stripReplyMention = {"/appearance/stripReplyMention", true};
     IntSetting collpseMessagesMinLines = {
@@ -242,6 +245,7 @@ public:
     BoolSetting enableFFZChannelEmotes = {"/emotes/ffz/channel", true};
     BoolSetting enableSevenTVGlobalEmotes = {"/emotes/seventv/global", true};
     BoolSetting enableSevenTVChannelEmotes = {"/emotes/seventv/channel", true};
+    BoolSetting enableSevenTVEventAPI = {"/emotes/seventv/eventapi", true};
 
     /// Links
     BoolSetting linksDoubleClickOnly = {"/links/doubleClickToOpen", false};
@@ -260,6 +264,8 @@ public:
         "/streamerMode/hideLinkThumbnails", true};
     BoolSetting streamerModeHideViewerCountAndDuration = {
         "/streamerMode/hideViewerCountAndDuration", false};
+    BoolSetting streamerModeHideModActions = {"/streamerMode/hideModActions",
+                                              true};
     BoolSetting streamerModeMuteMentions = {"/streamerMode/muteMentions", true};
     BoolSetting streamerModeSuppressLiveNotifications = {
         "/streamerMode/supressLiveNotifications", false};
@@ -283,7 +289,6 @@ public:
 
     /// Highlighting
     //    BoolSetting enableHighlights = {"/highlighting/enabled", true};
-    BoolSetting customHighlightSound = {"/highlighting/useCustomSound", false};
 
     BoolSetting enableSelfHighlight = {
         "/highlighting/selfHighlight/nameIsHighlightKeyword", true};
@@ -315,8 +320,8 @@ public:
     //        "/highlighting/redeemedHighlight/enableSound", false};
     //    BoolSetting enableRedeemedHighlightTaskbar = {
     //        "/highlighting/redeemedHighlight/enableTaskbarFlashing", false};
-    QStringSetting redeemedHighlightSoundUrl = {
-        "/highlighting/redeemedHighlightSoundUrl", ""};
+    //    QStringSetting redeemedHighlightSoundUrl = {
+    //        "/highlighting/redeemedHighlightSoundUrl", ""};
     QStringSetting redeemedHighlightColor = {
         "/highlighting/redeemedHighlightColor", ""};
 
@@ -326,8 +331,8 @@ public:
     //        "/highlighting/firstMessageHighlight/enableSound", false};
     //    BoolSetting enableFirstMessageHighlightTaskbar = {
     //        "/highlighting/firstMessageHighlight/enableTaskbarFlashing", false};
-    QStringSetting firstMessageHighlightSoundUrl = {
-        "/highlighting/firstMessageHighlightSoundUrl", ""};
+    //    QStringSetting firstMessageHighlightSoundUrl = {
+    //        "/highlighting/firstMessageHighlightSoundUrl", ""};
     QStringSetting firstMessageHighlightColor = {
         "/highlighting/firstMessageHighlightColor", ""};
 
@@ -337,8 +342,8 @@ public:
     //        "/highlighting/elevatedMessageHighlight/enableSound", false};
     //    BoolSetting enableElevatedMessageHighlightTaskbar = {
     //        "/highlighting/elevatedMessageHighlight/enableTaskbarFlashing", false};
-    QStringSetting elevatedMessageHighlightSoundUrl = {
-        "/highlighting/elevatedMessageHighlight/soundUrl", ""};
+    //    QStringSetting elevatedMessageHighlightSoundUrl = {
+    //        "/highlighting/elevatedMessageHighlight/soundUrl", ""};
     QStringSetting elevatedMessageHighlightColor = {
         "/highlighting/elevatedMessageHighlight/color", ""};
 
@@ -448,6 +453,14 @@ public:
     };
     BoolSetting displaySevenTVAnimatedProfile = {
         "/misc/displaySevenTVAnimatedProfile", false};
+    IntSetting scrollbackSplitLimit = {
+        "/misc/scrollback/splitLimit",
+        1000,
+    };
+    IntSetting scrollbackUsercardLimit = {
+        "/misc/scrollback/usercardLimit",
+        1000,
+    };
 
     // Temporary time-gate-overrides
     EnumSetting<HelixTimegateOverride> helixTimegateRaid = {
@@ -460,6 +473,15 @@ public:
     };
     EnumSetting<HelixTimegateOverride> helixTimegateVIPs = {
         "/misc/twitch/helix-timegate/vips",
+        HelixTimegateOverride::Timegate,
+    };
+    EnumSetting<HelixTimegateOverride> helixTimegateModerators = {
+        "/misc/twitch/helix-timegate/moderators",
+        HelixTimegateOverride::Timegate,
+    };
+
+    EnumSetting<HelixTimegateOverride> helixTimegateCommercial = {
+        "/misc/twitch/helix-timegate/commercial",
         HelixTimegateOverride::Timegate,
     };
 

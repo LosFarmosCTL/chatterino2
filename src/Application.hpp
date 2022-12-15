@@ -1,11 +1,12 @@
 #pragma once
 
-#include <QApplication>
-#include <memory>
-
 #include "common/SignalVector.hpp"
 #include "common/Singleton.hpp"
 #include "singletons/NativeMessaging.hpp"
+
+#include <QApplication>
+
+#include <memory>
 
 namespace chatterino {
 
@@ -17,6 +18,8 @@ class AccountController;
 class NotificationController;
 class HighlightController;
 class HotkeyController;
+class IUserDataController;
+class UserDataController;
 
 class Theme;
 class WindowManager;
@@ -24,6 +27,7 @@ class Logging;
 class Paths;
 class AccountManager;
 class Emotes;
+class IEmotes;
 class Settings;
 class Fonts;
 class Toasts;
@@ -42,7 +46,7 @@ public:
 
     virtual Theme *getThemes() = 0;
     virtual Fonts *getFonts() = 0;
-    virtual Emotes *getEmotes() = 0;
+    virtual IEmotes *getEmotes() = 0;
     virtual AccountController *getAccounts() = 0;
     virtual HotkeyController *getHotkeys() = 0;
     virtual WindowManager *getWindows() = 0;
@@ -53,6 +57,7 @@ public:
     virtual TwitchIrcServer *getTwitch() = 0;
     virtual ChatterinoBadges *getChatterinoBadges() = 0;
     virtual FfzBadges *getFfzBadges() = 0;
+    virtual IUserDataController *getUserData() = 0;
 };
 
 class Application : public IApplication
@@ -90,6 +95,7 @@ public:
     DankerinoBadges *const dankerinoBadges{};
     FfzBadges *const ffzBadges{};
     SeventvBadges *const seventvBadges{};
+    UserDataController *const userData{};
 
     /*[[deprecated]]*/ Logging *const logging{};
 
@@ -101,10 +107,7 @@ public:
     {
         return this->fonts;
     }
-    Emotes *getEmotes() override
-    {
-        return this->emotes;
-    }
+    IEmotes *getEmotes() override;
     AccountController *getAccounts() override
     {
         return this->accounts;
@@ -145,10 +148,12 @@ public:
     {
         return this->ffzBadges;
     }
+    IUserDataController *getUserData() override;
 
 private:
     void addSingleton(Singleton *singleton);
     void initPubSub();
+    void initSeventvEventAPI();
     void initNm(Paths &paths);
 
     template <typename T,

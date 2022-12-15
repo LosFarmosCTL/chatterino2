@@ -92,7 +92,7 @@ AboutPage::AboutPage()
                        ":/licenses/libcommuni_BSD3.txt");
             addLicense(form.getElement(), "OpenSSL", "https://www.openssl.org/",
                        ":/licenses/openssl.txt");
-            addLicense(form.getElement(), "RapidJson", "http://rapidjson.org/",
+            addLicense(form.getElement(), "RapidJson", "https://rapidjson.org/",
                        ":/licenses/rapidjson.txt");
             addLicense(form.getElement(), "Pajlada/Settings",
                        "https://github.com/pajlada/settings",
@@ -234,8 +234,9 @@ void AboutPage::addLicense(QFormLayout *form, const QString &name,
     auto *b = new QLabel("<a href=\"" + licenseLink + "\">show license</a>");
     QObject::connect(
         b, &QLabel::linkActivated, [parent = this, name, licenseLink] {
-            auto window =
-                new BasePopup(BaseWindow::Flags::EnableCustomFrame, parent);
+            auto window = new BasePopup({BaseWindow::Flags::EnableCustomFrame,
+                                         BaseWindow::DisableLayoutSave},
+                                        parent);
             window->setWindowTitle("Chatterino - License for " + name);
             window->setAttribute(Qt::WA_DeleteOnClose);
             auto layout = new QVBoxLayout();
