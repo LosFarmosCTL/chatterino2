@@ -3,6 +3,7 @@
 #include "Application.hpp"
 #include "common/Channel.hpp"
 #include "common/NetworkRequest.hpp"
+#include "common/NetworkResult.hpp"
 #include "common/QLogging.hpp"
 #include "controllers/accounts/AccountController.hpp"
 #include "controllers/highlights/HighlightBlacklistUser.hpp"
@@ -12,6 +13,8 @@
 #include "providers/IvrApi.hpp"
 #include "providers/twitch/api/Helix.hpp"
 #include "providers/twitch/api/Kraken.hpp"
+#include "providers/twitch/ChannelPointReward.hpp"
+#include "providers/twitch/TwitchAccount.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
 #include "singletons/Resources.hpp"
@@ -21,7 +24,6 @@
 #include "util/Clipboard.hpp"
 #include "util/Helpers.hpp"
 #include "util/LayoutCreator.hpp"
-#include "util/PostToThread.hpp"
 #include "util/StreamerMode.hpp"
 #include "widgets/helper/ChannelView.hpp"
 #include "widgets/helper/EffectLabel.hpp"
@@ -313,7 +315,7 @@ UserInfoPopup::UserInfoPopup(bool closeAutomatically, QWidget *parent,
                                 SplitContainer *container = nb.addPage(true);
                                 Split *split = new Split(container);
                                 split->setChannel(channel);
-                                container->appendSplit(split);
+                                container->insertSplit(split);
                             });
                         menu->popup(QCursor::pos());
                         menu->raise();
@@ -1081,7 +1083,7 @@ void UserInfoPopup::loadAvatar(const HelixUser &user)
         static auto manager = new QNetworkAccessManager();
         auto *reply = manager->get(req);
 
-        QObject::connect(reply, &QNetworkReply::finished, this, [=] {
+        QObject::connect(reply, &QNetworkReply::finished, this, [=, this] {
             if (reply->error() == QNetworkReply::NoError)
             {
                 auto data = reply->readAll();
@@ -1114,7 +1116,7 @@ void UserInfoPopup::fetchSevenTVAvatar(const HelixUser &user)
     NetworkRequest(SEVENTV_USER_API.arg(user.login))
         .timeout(20000)
         .header("Content-Type", "application/json")
-        .onSuccess([=](NetworkResult result) -> Outcome {
+        .onSuccess([=, this](const NetworkResult &result) -> Outcome {
             auto root = result.parseJson();
             auto id = root.value(QStringLiteral("id")).toString();
             auto profile_picture_id =
@@ -1127,21 +1129,22 @@ void UserInfoPopup::fetchSevenTVAvatar(const HelixUser &user)
 
                 NetworkRequest(URI)
                     .timeout(20000)
-                    .onSuccess([=](NetworkResult outcome) -> Outcome {
-                        auto data = outcome.getData();
-                        QCryptographicHash hash(
-                            QCryptographicHash::Algorithm::Sha1);
-                        auto SHA = QString(data.size()).toUtf8();
-                        hash.addData(SHA.data(), SHA.size() + 1);
+                    .onSuccess(
+                        [=, this](const NetworkResult &outcome) -> Outcome {
+                            auto data = outcome.getData();
+                            QCryptographicHash hash(
+                                QCryptographicHash::Algorithm::Sha1);
+                            auto SHA = QString(data.size()).toUtf8();
+                            hash.addData(SHA.data(), SHA.size() + 1);
 
-                        auto filename =
-                            this->getFilename(hash.result().toHex());
+                            auto filename =
+                                this->getFilename(hash.result().toHex());
 
-                        this->saveCacheAvatar(data, filename);
-                        this->setSevenTVAvatar(filename);
+                            this->saveCacheAvatar(data, filename);
+                            this->setSevenTVAvatar(filename);
 
-                        return Success;
-                    })
+                            return Success;
+                        })
                     .execute();
             }
             return Success;
@@ -1160,7 +1163,7 @@ void UserInfoPopup::setSevenTVAvatar(const QString &filename)
     }
     else
     {
-        QObject::connect(movie, &QMovie::frameChanged, this, [=] {
+        QObject::connect(movie, &QMovie::frameChanged, this, [=, this] {
             this->ui_.avatarButton->setPixmap(movie->currentPixmap());
         });
         movie->start();

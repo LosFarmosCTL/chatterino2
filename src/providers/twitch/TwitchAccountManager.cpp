@@ -6,6 +6,8 @@
 #include "providers/twitch/api/Kraken.hpp"
 #include "providers/twitch/TwitchAccount.hpp"
 #include "providers/twitch/TwitchCommon.hpp"
+#include "providers/twitch/TwitchUser.hpp"
+#include "util/SharedPtrElementLess.hpp"
 
 namespace chatterino {
 
