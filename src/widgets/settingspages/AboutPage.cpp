@@ -3,6 +3,7 @@
 #include "common/Modes.hpp"
 #include "common/QLogging.hpp"
 #include "common/Version.hpp"
+#include "singletons/Settings.hpp"
 #include "util/LayoutCreator.hpp"
 #include "util/RemoveScrollAreaBackground.hpp"
 #include "widgets/BasePopup.hpp"
@@ -114,6 +115,12 @@ AboutPage::AboutPage()
             addLicense(form.getElement(), "magic_enum",
                        "https://github.com/Neargye/magic_enum",
                        ":/licenses/magic_enum.txt");
+            addLicense(form.getElement(), "semver",
+                       "https://github.com/Neargye/semver",
+                       ":/licenses/semver.txt");
+            addLicense(form.getElement(), "miniaudio",
+                       "https://github.com/mackron/miniaudio",
+                       ":/licenses/miniaudio.txt");
         }
 
         // Attributions
