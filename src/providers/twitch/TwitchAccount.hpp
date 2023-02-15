@@ -18,6 +18,12 @@
 
 namespace chatterino {
 
+enum FollowResult {
+    FollowResult_Following,
+    FollowResult_NotFollowing,
+    FollowResult_Failed,
+};
+
 struct TwitchUser;
 class Channel;
 using ChannelPtr = std::shared_ptr<Channel>;
