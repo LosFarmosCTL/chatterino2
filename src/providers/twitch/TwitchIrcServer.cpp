@@ -441,11 +441,6 @@ bool TwitchIrcServer::prepareToSend(TwitchChannel *channel)
     }
 
     // check if you are sending too many messages
-    maxMessageCount = (getSettings()->rainbowMessages &&
-                       getSettings()->rainbowMessagesReduceRatelimit)
-                          ? maxMessageCount / 2
-                          : maxMessageCount;
-
     if (!getSettings()->ignoreMaxMessageRateLimit &&
         (lastMessage.size() >= maxMessageCount))
     {
@@ -482,7 +477,7 @@ void TwitchIrcServer::onMessageSendRequested(TwitchChannel *channel,
 
         if (getSettings()->rainbowMessagesPrime)
         {
-            if (!rainbowHue.count(channel->getName()))
+            if (!rainbowHue.contains(channel->getName()))
             {
                 rainbowHue[channel->getName()] =
                     getSettings()->rainbowStartingHue;
@@ -520,26 +515,75 @@ void TwitchIrcServer::onMessageSendRequested(TwitchChannel *channel,
             nonPrimeColorsIndex[channel->getName()] = colorID;
         }
 
-        const auto colorMessage = ".color " + color;
+        getHelix()->updateUserChatColor(
+            getApp()->accounts->twitch.getCurrent()->getUserId(), color,
+            [channel, this, &sent, message] {
+                if (channel->getName().startsWith("$"))
+                {
+                    this->sendRawMessage("PRIVMSG " +
+                                         channel->getName().mid(1) + " :" +
+                                         message);
+                }
+                else
+                {
+                    this->sendMessage(channel->getName(), message);
+                }
+                sent = true;
+            },
+            [color, channel, this, &sent, message](auto error,
+                                                   auto helixErrorMessage) {
+                QString errorMessage =
+                    QString("Failed to change color to %1 - ").arg(color);
 
-        // use the authenticated users channel to send /color messages
-        QString currentUsername =
-            getApp()->accounts->twitch.getCurrent()->getUserName();
+                switch (error)
+                {
+                    case HelixUpdateUserChatColorError::UserMissingScope: {
+                        errorMessage +=
+                            "Missing required scope. Re-login with your "
+                            "account and try again.";
+                    }
+                    break;
 
-        this->sendRawMessage("PRIVMSG #" + currentUsername + " :" +
-                             colorMessage);
-    }
+                    case HelixUpdateUserChatColorError::Forwarded: {
+                        errorMessage += helixErrorMessage + ".";
+                    }
+                    break;
 
-    if (channel->getName().startsWith("$"))
-    {
-        this->sendRawMessage("PRIVMSG " + channel->getName().mid(1) + " :" +
-                             message);
+                    case HelixUpdateUserChatColorError::Unknown:
+                    default: {
+                        errorMessage += "An unknown error has occurred.";
+                    }
+                    break;
+                }
+
+                channel->addMessage(makeSystemMessage(errorMessage));
+
+                if (channel->getName().startsWith("$"))
+                {
+                    this->sendRawMessage("PRIVMSG " +
+                                         channel->getName().mid(1) + " :" +
+                                         message);
+                }
+                else
+                {
+                    this->sendMessage(channel->getName(), message);
+                }
+                sent = true;
+            });
     }
     else
     {
-        this->sendMessage(channel->getName(), message);
+        if (channel->getName().startsWith("$"))
+        {
+            this->sendRawMessage("PRIVMSG " + channel->getName().mid(1) + " :" +
+                                 message);
+        }
+        else
+        {
+            this->sendMessage(channel->getName(), message);
+        }
+        sent = true;
     }
-    sent = true;
 }
 
 void TwitchIrcServer::onReplySendRequested(TwitchChannel *channel,
