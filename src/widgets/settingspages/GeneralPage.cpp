@@ -303,19 +303,12 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         "Change color to create a rainbow effect before sending each message",
         s.rainbowMessages);
     layout.addCheckbox(
-        "Reduce rate limit to account for sending a /color message "
-        "everytime\n(Disable if you have a verified bot account)",
-        s.rainbowMessagesReduceRatelimit);
-    layout.addCheckbox(
-        "Suppress color changed notices when rainbow color is enabled",
-        s.rainbowMessagesDisableChangedMessage);
-    layout.addCheckbox(
         "Use true rainbow colors (requires Twitch Prime or Turbo)",
         s.rainbowMessagesPrime);
     layout.addIntInput("Rainbow speed (HSL hue increase per new color)",
                        s.rainbowSpeed, 1, 100, 1);
-    layout.addIntInput("Rainbow starting color (HSL hue)",
-                       s.rainbowStartingHue, 0, 359, 1);
+    layout.addIntInput("Rainbow starting color (HSL hue)", s.rainbowStartingHue,
+                       0, 359, 1);
 
     layout.addTitle("Messages");
     layout.addCheckbox(
