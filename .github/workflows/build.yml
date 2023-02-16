@@ -372,11 +372,11 @@ jobs:
           body: ${{ github.event.head_commit.message }}
           prerelease: false
           name: Rainbow Color
-          tag: rainbow-color
+          tag: rainbow-color-release
           commit: ${{ github.sha }}
 
       - name: Update rainbow-color tag
         run: |
-          git tag -f rainbow-color
-          git push -f origin rainbow-color
+          git tag -f rainbow-color-release
+          git push -f origin rainbow-color-release
         shell: bash
