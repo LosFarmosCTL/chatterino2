@@ -528,7 +528,6 @@ void TwitchIrcServer::onMessageSendRequested(TwitchChannel *channel,
                 {
                     this->sendMessage(channel->getName(), message);
                 }
-                sent = true;
             },
             [color, channel, this, &sent, message](auto error,
                                                    auto helixErrorMessage) {
@@ -568,7 +567,6 @@ void TwitchIrcServer::onMessageSendRequested(TwitchChannel *channel,
                 {
                     this->sendMessage(channel->getName(), message);
                 }
-                sent = true;
             });
     }
     else
@@ -582,8 +580,9 @@ void TwitchIrcServer::onMessageSendRequested(TwitchChannel *channel,
         {
             this->sendMessage(channel->getName(), message);
         }
-        sent = true;
     }
+
+    sent = true;
 }
 
 void TwitchIrcServer::onReplySendRequested(TwitchChannel *channel,
