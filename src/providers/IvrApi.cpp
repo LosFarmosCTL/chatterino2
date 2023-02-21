@@ -58,6 +58,29 @@ void IvrApi::getBulkEmoteSets(QString emoteSetList,
         .execute();
 }
 
+void IvrApi::getModVIP(QString channelName,
+                       ResultCallback<IvrModVIP> successCallback,
+                       IvrFailureCallback failureCallback)
+{
+    QUrlQuery urlQuery;
+
+    this->makeRequest(QString("twitch/modvip/%1").arg(channelName), urlQuery)
+        .onSuccess([successCallback, failureCallback](auto result) -> Outcome {
+            auto root = result.parseJson();
+
+            successCallback(root);
+
+            return Success;
+        })
+        .onError([failureCallback](auto result) {
+            qCWarning(chatterinoIvr)
+                << "Failed IVR API Call!" << result.status()
+                << QString(result.getData());
+            failureCallback();
+        })
+        .execute();
+}
+
 NetworkRequest IvrApi::makeRequest(QString url, QUrlQuery urlQuery)
 {
     assert(!url.startsWith("/"));

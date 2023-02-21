@@ -17,6 +17,7 @@
 #include "messages/MessageThread.hpp"
 #include "providers/irc/IrcChannel2.hpp"
 #include "providers/irc/IrcServer.hpp"
+#include "providers/IvrApi.hpp"
 #include "providers/twitch/api/Helix.hpp"
 #include "providers/twitch/api/Kraken.hpp"
 #include "providers/twitch/TwitchAccount.hpp"
@@ -1146,41 +1147,26 @@ void CommandController::initialize(Settings &, Paths &paths)
                 return "";
             }
 
-            switch (getSettings()->helixTimegateModerators.getValue())
-            {
-                case HelixTimegateOverride::Timegate: {
-                    if (areIRCCommandsStillAvailable())
+            getIvr()->getModVIP(
+                twitchChannel->getName(),
+                [channel, twitchChannel](IvrModVIP modVIP) {
+                    QStringList mods;
+                    for (const auto &mod : modVIP.mods)
                     {
-                        return useIRCCommand(words);
+                        mods.push_back(mod["login"].toString());
                     }
-                }
-                break;
-
-                case HelixTimegateOverride::AlwaysUseIRC: {
-                    return useIRCCommand(words);
-                }
-                break;
-                case HelixTimegateOverride::AlwaysUseHelix: {
-                    // Fall through to helix logic
-                }
-                break;
-            }
-
-            getHelix()->getModerators(
-                twitchChannel->roomId(), 500,
-                [channel, twitchChannel](auto result) {
-                    // TODO: sort results?
 
                     MessageBuilder builder;
                     TwitchMessageBuilder::listOfUsersSystemMessage(
-                        "The moderators of this channel are", result,
+                        "The moderators of this channel are", mods,
                         twitchChannel, &builder);
                     channel->addMessage(builder.release());
                 },
-                [channel, formatModsError](auto error, auto message) {
-                    auto errorMessage = formatModsError(error, message);
-                    channel->addMessage(makeSystemMessage(errorMessage));
+                [channel] {
+                    channel->addMessage(
+                        makeSystemMessage("Failed to get moderators"));
                 });
+
             return "";
         });
 
@@ -2993,62 +2979,31 @@ void CommandController::initialize(Settings &, Paths &paths)
                 return "";
             }
 
-            switch (getSettings()->helixTimegateVIPs.getValue())
-            {
-                case HelixTimegateOverride::Timegate: {
-                    if (areIRCCommandsStillAvailable())
+            getIvr()->getModVIP(
+                twitchChannel->getName(),
+                [channel, twitchChannel](IvrModVIP modVIP) {
+                    QStringList vips;
+                    for (const auto &vip : modVIP.vips)
                     {
-                        return useIRCCommand(words);
+                        vips.push_back(vip["login"].toString());
                     }
 
-                    // fall through to Helix logic
-                }
-                break;
-
-                case HelixTimegateOverride::AlwaysUseIRC: {
-                    return useIRCCommand(words);
-                }
-                break;
-
-                case HelixTimegateOverride::AlwaysUseHelix: {
-                    // do nothing and fall through to Helix logic
-                }
-                break;
-            }
-            auto currentUser = getApp()->accounts->twitch.getCurrent();
-            if (currentUser->isAnon())
-            {
-                channel->addMessage(makeSystemMessage(
-                    "Due to Twitch restrictions, "  //
-                    "this command can only be used by the broadcaster. "
-                    "To see the list of VIPs you must use the "
-                    "Twitch website."));
-                return "";
-            }
-
-            getHelix()->getChannelVIPs(
-                twitchChannel->roomId(),
-                [channel, twitchChannel](const std::vector<HelixVip> &vipList) {
-                    if (vipList.empty())
+                    if (vips.empty())
                     {
                         channel->addMessage(makeSystemMessage(
                             "This channel does not have any VIPs."));
                         return;
                     }
 
-                    auto messagePrefix =
-                        QString("The VIPs of this channel are");
-
-                    // TODO: sort results?
                     MessageBuilder builder;
                     TwitchMessageBuilder::listOfUsersSystemMessage(
-                        messagePrefix, vipList, twitchChannel, &builder);
-
+                        "The VIPs of this channel are", vips, twitchChannel,
+                        &builder);
                     channel->addMessage(builder.release());
                 },
-                [channel, formatVIPListError](auto error, auto message) {
-                    auto errorMessage = formatVIPListError(error, message);
-                    channel->addMessage(makeSystemMessage(errorMessage));
+                [channel] {
+                    channel->addMessage(
+                        makeSystemMessage("Failed to get VIPs"));
                 });
 
             return "";

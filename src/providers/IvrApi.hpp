@@ -74,6 +74,17 @@ struct IvrEmote {
     }
 };
 
+struct IvrModVIP {
+    const QJsonArray mods;
+    const QJsonArray vips;
+
+    IvrModVIP(const QJsonObject &root)
+        : mods(root.value("mods").toArray())
+        , vips(root.value("vips").toArray())
+    {
+    }
+};
+
 class IvrApi final : boost::noncopyable
 {
 public:
@@ -86,6 +97,10 @@ public:
     void getBulkEmoteSets(QString emoteSetList,
                           ResultCallback<QJsonArray> successCallback,
                           IvrFailureCallback failureCallback);
+
+    void getModVIP(QString channelName,
+                   ResultCallback<IvrModVIP> successCallback,
+                   IvrFailureCallback failureCallback);
 
     static void initialize();
 
