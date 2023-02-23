@@ -1153,7 +1153,8 @@ void CommandController::initialize(Settings &, Paths &paths)
                     QStringList mods;
                     for (const auto &mod : modVIP.mods)
                     {
-                        mods.push_back(mod["login"].toString());
+                        mods.push_back(
+                            mod.toObject().value("login").toString());
                     }
 
                     MessageBuilder builder;
@@ -2985,7 +2986,8 @@ void CommandController::initialize(Settings &, Paths &paths)
                     QStringList vips;
                     for (const auto &vip : modVIP.vips)
                     {
-                        vips.push_back(vip["login"].toString());
+                        vips.push_back(
+                            vip.toObject().value("login").toString());
                     }
 
                     if (vips.empty())
