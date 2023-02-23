@@ -36,6 +36,7 @@
 
 #include <QCheckBox>
 #include <QDesktopServices>
+#include <QFile>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
@@ -688,10 +689,10 @@ void UserInfoPopup::installEvents()
                 case Qt::CheckState::Unchecked: {
                     this->ui_.follow->setEnabled(false);
                     getKraken()->unfollowUser(currentUser->getUserId(),
-                                             this->userId_,
-                                             reenableFollowCheckbox, [] {
-                                                 //
-                                             });
+                                              this->userId_,
+                                              reenableFollowCheckbox, [] {
+                                                  //
+                                              });
                 }
                 break;
 
@@ -703,10 +704,10 @@ void UserInfoPopup::installEvents()
                 case Qt::CheckState::Checked: {
                     this->ui_.follow->setEnabled(false);
                     getKraken()->followUser(currentUser->getUserId(),
-                                           this->userId_,
-                                           reenableFollowCheckbox, [] {
-                                               //
-                                           });
+                                            this->userId_,
+                                            reenableFollowCheckbox, [] {
+                                                //
+                                            });
                 }
                 break;
             }
