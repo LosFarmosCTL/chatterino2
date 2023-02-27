@@ -498,11 +498,11 @@ void TwitchIrcServer::onMessageSendRequested(TwitchChannel *channel,
         }
         else
         {
-            QString colors[13]{"Firebrick",   "Red",       "OrangeRed",
-                               "Chocolate",   "GoldenRod", "YellowGreen",
-                               "SpringGreen", "SeaGreen",  "CadetBlue",
-                               "DodgerBlue",  "Blue",      "BlueViolet",
-                               "HotPink"};
+            QString colors[13]{"firebrick",    "red",        "orange_red",
+                               "chocolate",    "golden_rod", "yellow_green",
+                               "spring_green", "sea_green",  "cadet_blue",
+                               "dodger_blue",  "blue",       "blue_violet",
+                               "hot_pink"};
 
             auto colorID = nonPrimeColorsIndex[channel->getName()];
             if (colorID >= 12)
