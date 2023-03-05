@@ -3,6 +3,8 @@
 #include <utility>
 #include "Paint.hpp"
 
+#include <optional>
+
 namespace chatterino {
 
 class LinearGradientPaint : public Paint
