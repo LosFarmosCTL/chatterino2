@@ -34,6 +34,7 @@ class ChatterinoBadges;
 class DankerinoBadges;
 class FfzBadges;
 class SeventvBadges;
+class SeventvPaints;
 
 class IApplication
 {
@@ -94,6 +95,7 @@ public:
     DankerinoBadges *const dankerinoBadges{};
     FfzBadges *const ffzBadges{};
     SeventvBadges *const seventvBadges{};
+    SeventvPaints *const seventvPaints{};
     UserDataController *const userData{};
     SoundController *const sound{};
 

@@ -23,6 +23,8 @@
 #include "providers/seventv/eventapi/Dispatch.hpp"
 #include "providers/seventv/eventapi/Subscription.hpp"
 #include "providers/seventv/SeventvBadges.hpp"
+#include "providers/seventv/SeventvEmotes.hpp"
+#include "providers/seventv/SeventvPaints.hpp"
 #include "providers/seventv/SeventvEventAPI.hpp"
 #include "providers/twitch/ChannelPointReward.hpp"
 #include "providers/twitch/PubSubActions.hpp"
@@ -85,6 +87,7 @@ Application::Application(Settings &_settings, Paths &_paths)
     , dankerinoBadges(&this->emplace<DankerinoBadges>())
     , ffzBadges(&this->emplace<FfzBadges>())
     , seventvBadges(&this->emplace<SeventvBadges>())
+    , seventvPaints(&this->emplace<SeventvPaints>())
     , userData(&this->emplace<UserDataController>())
     , sound(&this->emplace<SoundController>())
     , logging(&this->emplace<Logging>())

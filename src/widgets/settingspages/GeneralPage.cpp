@@ -800,6 +800,7 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         "only available when chat has less than 1000 users");
     layout.addCheckbox("Automatically close user popup when it loses focus",
                        s.autoCloseUserPopup);
+    layout.addCheckbox("Display 7TV Paints", s.displaySevenTVPaints);
     layout.addCheckbox(
         "Automatically close reply thread popup when it loses focus",
         s.autoCloseThreadPopup);
