@@ -363,16 +363,6 @@ jobs:
 
       - uses: actions/download-artifact@v3
         with:
-          name: Chatterino-x86_64-5.12.12.AppImage
-          path: release-artifacts/
-
-      - uses: actions/download-artifact@v3
-        with:
-          name: Chatterino-ubuntu-20.04-Qt-5.12.12.deb
-          path: release-artifacts/
-
-      - uses: actions/download-artifact@v3
-        with:
           name: Chatterino-ubuntu-22.04-Qt-5.15.2.deb
           path: release-artifacts/
 
@@ -390,7 +380,6 @@ jobs:
         uses: ncipollo/release-action@v1.12.0
         with:
           removeArtifacts: true
-          allowUpdates: true
           artifactErrorsFailBuild: true
           artifacts: "release-artifacts/*"
           body: ${{ github.event.head_commit.message }}
