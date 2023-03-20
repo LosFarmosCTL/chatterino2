@@ -31,7 +31,6 @@ class Settings;
 class Fonts;
 class Toasts;
 class ChatterinoBadges;
-class DankerinoBadges;
 class FfzBadges;
 class SeventvBadges;
 class SeventvPaints;
@@ -92,7 +91,6 @@ public:
     HighlightController *const highlights{};
     TwitchIrcServer *const twitch{};
     ChatterinoBadges *const chatterinoBadges{};
-    DankerinoBadges *const dankerinoBadges{};
     FfzBadges *const ffzBadges{};
     SeventvBadges *const seventvBadges{};
     SeventvPaints *const seventvPaints{};
