@@ -170,7 +170,6 @@ public:
                                           true};
     BoolSetting showBadgesVanity = {"/appearance/badges/vanity", true};
     BoolSetting showBadgesChatterino = {"/appearance/badges/chatterino", true};
-    BoolSetting showBadgesDankerino = {"/appearance/badges/dankerino", true};
     BoolSetting showBadgesFfz = {"/appearance/badges/ffz", true};
     BoolSetting useCustomFfzModeratorBadges = {
         "/appearance/badges/useCustomFfzModeratorBadges", true};
@@ -226,6 +225,7 @@ public:
                                            false};
     BoolSetting enableEmoteImages = {"/emotes/enableEmoteImages", true};
     BoolSetting animateEmotes = {"/emotes/enableGifAnimations", true};
+    BoolSetting enableZeroWidthEmotes = {"/emotes/enableZeroWidthEmotes", true};
     FloatSetting emoteScale = {"/emotes/scale", 1.f};
     BoolSetting showUnlistedSevenTVEmotes = {
         "/emotes/showUnlistedSevenTVEmotes", false};

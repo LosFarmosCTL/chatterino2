@@ -217,9 +217,6 @@ set(SOURCE_FILES
         providers/bttv/liveupdates/BttvLiveUpdateSubscription.cpp
         providers/bttv/liveupdates/BttvLiveUpdateSubscription.hpp
 
-        providers/dankerino/DankerinoBadges.cpp
-        providers/dankerino/DankerinoBadges.hpp
-
         providers/chatterino/ChatterinoBadges.cpp
         providers/chatterino/ChatterinoBadges.hpp
 
@@ -428,6 +425,8 @@ set(SOURCE_FILES
         widgets/Scrollbar.hpp
         widgets/StreamView.cpp
         widgets/StreamView.hpp
+        widgets/TooltipEntryWidget.cpp
+        widgets/TooltipEntryWidget.hpp
         widgets/TooltipWidget.cpp
         widgets/TooltipWidget.hpp
         widgets/Window.cpp
