@@ -387,7 +387,7 @@ void GeneralPage::initLayout(GeneralPageView &layout)
     layout.addCheckbox("Animate only when Chatterino is focused",
                        s.animationsWhenFocused);
     layout.addCheckbox(
-        "Enable zero-width emotes", s.enableZeroWidthEmotes,
+        "Enable zero-width emotes", s.enableZeroWidthEmotes, false,
         "When disabled, emotes that overlap other emotes, such as BTTV's "
         "cvMask and 7TV's RainTime, will appear as normal emotes.");
     layout.addCheckbox("Enable emote auto-completion by typing :",
@@ -428,16 +428,30 @@ void GeneralPage::initLayout(GeneralPageView &layout)
                 });
         },
         false);
-    layout.addDropdown<int>(
-        "Show info on hover", {"Don't show", "Always show", "Hold shift"},
+    layout.addDropdown<std::underlying_type<ThumbnailPreviewMode>::type>(
+        "Show emote & badge thumbnail on hover",
+        {
+            "Don't show",
+            "Always show",
+            "Hold shift",
+        },
         s.emotesTooltipPreview,
-        [](int index) {
-            return index;
+        [](auto val) {
+            switch (val)
+            {
+                case ThumbnailPreviewMode::DontShow:
+                    return "Don't show";
+                case ThumbnailPreviewMode::AlwaysShow:
+                    return "Always show";
+                case ThumbnailPreviewMode::ShowOnShift:
+                    return "Hold shift";
+            }
+            return "";
         },
         [](auto args) {
             return args.index;
         },
-        false, "Show emote name, provider, and author on hover.");
+        false);
     layout.addDropdown("Emoji style",
                        {
                            "Twitter",
