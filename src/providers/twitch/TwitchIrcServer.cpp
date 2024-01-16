@@ -1,6 +1,7 @@
-#include "TwitchIrcServer.hpp"
+#include "providers/twitch/TwitchIrcServer.hpp"
 
 #include "Application.hpp"
+#include "common/Channel.hpp"
 #include "common/Env.hpp"
 #include "common/QLogging.hpp"
 #include "controllers/accounts/AccountController.hpp"
@@ -12,7 +13,6 @@
 #include "providers/twitch/api/Helix.hpp"
 #include "providers/twitch/ChannelPointReward.hpp"
 #include "providers/twitch/IrcMessageHandler.hpp"
-#include "providers/twitch/PubSubManager.hpp"
 #include "providers/twitch/TwitchAccount.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "singletons/Settings.hpp"
@@ -25,10 +25,7 @@
 
 #include <cassert>
 
-// using namespace Communi;
 using namespace std::chrono_literals;
-
-#define TWITCH_PUBSUB_URL "wss://pubsub-edge.twitch.tv"
 
 namespace {
 
@@ -43,11 +40,10 @@ TwitchIrcServer::TwitchIrcServer()
     : whispersChannel(new Channel("/whispers", Channel::Type::TwitchWhispers))
     , mentionsChannel(new Channel("/mentions", Channel::Type::TwitchMentions))
     , liveChannel(new Channel("/live", Channel::Type::TwitchLive))
+    , automodChannel(new Channel("/automod", Channel::Type::TwitchAutomod))
     , watchingChannel(Channel::getEmpty(), Channel::Type::TwitchWatching)
 {
     this->initializeIrc();
-
-    this->pubsub = new PubSub(TWITCH_PUBSUB_URL);
 
     if (getSettings()->enableBTTVLiveUpdates &&
         getSettings()->enableBTTVChannelEmotes)
@@ -74,7 +70,6 @@ void TwitchIrcServer::initialize(Settings &settings, Paths &paths)
     getApp()->accounts->twitch.currentUserChanged.connect([this]() {
         postToThread([this] {
             this->connect();
-            this->pubsub->setAccount(getApp()->accounts->twitch.getCurrent());
         });
     });
 
@@ -82,12 +77,6 @@ void TwitchIrcServer::initialize(Settings &settings, Paths &paths)
     this->reloadBTTVGlobalEmotes();
     this->reloadFFZGlobalEmotes();
     this->reloadSevenTVGlobalEmotes();
-
-    /* Refresh all twitch channel's live status in bulk every 30 seconds after starting chatterino */
-    QObject::connect(&this->bulkLiveStatusTimer_, &QTimer::timeout, [this] {
-        this->bulkRefreshLiveStatus();
-    });
-    this->bulkLiveStatusTimer_.start(30 * 1000);
 }
 
 void TwitchIrcServer::initializeConnection(IrcConnection *connection,
@@ -141,21 +130,24 @@ void TwitchIrcServer::initializeConnection(IrcConnection *connection,
 std::shared_ptr<Channel> TwitchIrcServer::createChannel(
     const QString &channelName)
 {
-    auto channel =
-        std::shared_ptr<TwitchChannel>(new TwitchChannel(channelName));
+    auto channel = std::make_shared<TwitchChannel>(channelName);
     channel->initialize();
 
-    channel->sendMessageSignal.connect(
+    // We can safely ignore these signal connections since the TwitchIrcServer is only
+    // ever destroyed when the full Application state is about to be destroyed, at which point
+    // no Channel's should live
+    // NOTE: CHANNEL_LIFETIME
+    std::ignore = channel->sendMessageSignal.connect(
         [this, channel = channel.get()](auto &chan, auto &msg, bool &sent) {
             this->onMessageSendRequested(channel, msg, sent);
         });
-    channel->sendReplySignal.connect(
+    std::ignore = channel->sendReplySignal.connect(
         [this, channel = channel.get()](auto &chan, auto &msg, auto &replyId,
                                         bool &sent) {
             this->onReplySendRequested(channel, msg, replyId, sent);
         });
 
-    return std::shared_ptr<Channel>(channel);
+    return channel;
 }
 
 void TwitchIrcServer::privateMessageReceived(
@@ -223,6 +215,7 @@ void TwitchIrcServer::readConnectionMessageReceived(
     {
         this->addGlobalSystemMessage(
             "Twitch Servers requested us to reconnect, reconnecting");
+        this->markChannelsConnected();
         this->connect();
     }
     else if (command == "GLOBALUSERSTATE")
@@ -276,24 +269,107 @@ std::shared_ptr<Channel> TwitchIrcServer::getCustomChannel(
         return this->liveChannel;
     }
 
-    if (channelName == "$$$")
+    if (channelName == "/automod")
     {
-        static auto channel =
-            std::make_shared<Channel>("$$$", chatterino::Channel::Type::Misc);
-        static auto getTimer = [&] {
+        return this->automodChannel;
+    }
+
+    static auto getTimer = [](ChannelPtr channel, int msBetweenMessages,
+                              bool addInitialMessages) {
+        if (addInitialMessages)
+        {
             for (auto i = 0; i < 1000; i++)
             {
                 channel->addMessage(makeSystemMessage(QString::number(i + 1)));
             }
+        }
 
-            auto timer = new QTimer;
-            QObject::connect(timer, &QTimer::timeout, [] {
-                channel->addMessage(
-                    makeSystemMessage(QTime::currentTime().toString()));
-            });
-            timer->start(500);
-            return timer;
-        }();
+        auto *timer = new QTimer;
+        QObject::connect(timer, &QTimer::timeout, [channel] {
+            channel->addMessage(
+                makeSystemMessage(QTime::currentTime().toString()));
+        });
+        timer->start(msBetweenMessages);
+        return timer;
+    };
+
+    if (channelName == "$$$")
+    {
+        static auto channel = std::make_shared<Channel>(
+            channelName, chatterino::Channel::Type::Misc);
+        getTimer(channel, 500, true);
+
+        return channel;
+    }
+    if (channelName == "$$$:e")
+    {
+        static auto channel = std::make_shared<Channel>(
+            channelName, chatterino::Channel::Type::Misc);
+        getTimer(channel, 500, false);
+
+        return channel;
+    }
+    if (channelName == "$$$$")
+    {
+        static auto channel = std::make_shared<Channel>(
+            channelName, chatterino::Channel::Type::Misc);
+        getTimer(channel, 250, true);
+
+        return channel;
+    }
+    if (channelName == "$$$$:e")
+    {
+        static auto channel = std::make_shared<Channel>(
+            channelName, chatterino::Channel::Type::Misc);
+        getTimer(channel, 250, false);
+
+        return channel;
+    }
+    if (channelName == "$$$$$")
+    {
+        static auto channel = std::make_shared<Channel>(
+            channelName, chatterino::Channel::Type::Misc);
+        getTimer(channel, 100, true);
+
+        return channel;
+    }
+    if (channelName == "$$$$$:e")
+    {
+        static auto channel = std::make_shared<Channel>(
+            channelName, chatterino::Channel::Type::Misc);
+        getTimer(channel, 100, false);
+
+        return channel;
+    }
+    if (channelName == "$$$$$$")
+    {
+        static auto channel = std::make_shared<Channel>(
+            channelName, chatterino::Channel::Type::Misc);
+        getTimer(channel, 50, true);
+
+        return channel;
+    }
+    if (channelName == "$$$$$$:e")
+    {
+        static auto channel = std::make_shared<Channel>(
+            channelName, chatterino::Channel::Type::Misc);
+        getTimer(channel, 50, false);
+
+        return channel;
+    }
+    if (channelName == "$$$$$$$")
+    {
+        static auto channel = std::make_shared<Channel>(
+            channelName, chatterino::Channel::Type::Misc);
+        getTimer(channel, 25, true);
+
+        return channel;
+    }
+    if (channelName == "$$$$$$$:e")
+    {
+        static auto channel = std::make_shared<Channel>(
+            channelName, chatterino::Channel::Type::Misc);
+        getTimer(channel, 25, false);
 
         return channel;
     }
@@ -309,6 +385,7 @@ void TwitchIrcServer::forEachChannelAndSpecialChannels(
     func(this->whispersChannel);
     func(this->mentionsChannel);
     func(this->liveChannel);
+    func(this->automodChannel);
 }
 
 std::shared_ptr<Channel> TwitchIrcServer::getChannelOrEmptyByID(
@@ -320,11 +397,15 @@ std::shared_ptr<Channel> TwitchIrcServer::getChannelOrEmptyByID(
     {
         auto channel = weakChannel.lock();
         if (!channel)
+        {
             continue;
+        }
 
         auto twitchChannel = std::dynamic_pointer_cast<TwitchChannel>(channel);
         if (!twitchChannel)
+        {
             continue;
+        }
 
         if (twitchChannel->roomId() == channelId &&
             twitchChannel->getName().count(':') < 2)
@@ -336,65 +417,16 @@ std::shared_ptr<Channel> TwitchIrcServer::getChannelOrEmptyByID(
     return Channel::getEmpty();
 }
 
-void TwitchIrcServer::bulkRefreshLiveStatus()
-{
-    auto twitchChans = std::make_shared<QHash<QString, TwitchChannel *>>();
-
-    this->forEachChannel([twitchChans](ChannelPtr chan) {
-        auto tc = dynamic_cast<TwitchChannel *>(chan.get());
-        if (tc && !tc->roomId().isEmpty())
-        {
-            twitchChans->insert(tc->roomId(), tc);
-        }
-    });
-
-    // iterate over batches of channel IDs
-    for (const auto &batch : splitListIntoBatches(twitchChans->keys()))
-    {
-        getHelix()->fetchStreams(
-            batch, {},
-            [twitchChans](std::vector<HelixStream> streams) {
-                for (const auto &stream : streams)
-                {
-                    // remaining channels will be used later to set their stream status as offline
-                    // so we use take(id) to remove it
-                    auto tc = twitchChans->take(stream.userId);
-                    if (tc == nullptr)
-                    {
-                        continue;
-                    }
-
-                    tc->parseLiveStatus(true, stream);
-                }
-            },
-            []() {
-                // failure
-            },
-            [batch, twitchChans] {
-                // All the channels that were not present in fetchStreams response should be assumed to be offline
-                // It is necessary to update their stream status in case they've gone live -> offline
-                // Otherwise some of them will be marked as live forever
-                for (const auto &chID : batch)
-                {
-                    auto tc = twitchChans->value(chID);
-                    // early out in case channel does not exist anymore
-                    if (tc == nullptr)
-                    {
-                        continue;
-                    }
-
-                    tc->parseLiveStatus(false, {});
-                }
-            });
-    }
-}
-
 QString TwitchIrcServer::cleanChannelName(const QString &dirtyChannelName)
 {
     if (dirtyChannelName.startsWith('#'))
+    {
         return dirtyChannelName.mid(1).toLower();
+    }
     else
+    {
         return dirtyChannelName.toLower();
+    }
 }
 
 bool TwitchIrcServer::hasSeparateWriteConnection() const
@@ -613,6 +645,11 @@ const FfzEmotes &TwitchIrcServer::getFfzEmotes() const
 const SeventvEmotes &TwitchIrcServer::getSeventvEmotes() const
 {
     return this->seventv_;
+}
+
+const IndirectChannel &TwitchIrcServer::getWatchingChannel() const
+{
+    return this->watchingChannel;
 }
 
 void TwitchIrcServer::reloadBTTVGlobalEmotes()

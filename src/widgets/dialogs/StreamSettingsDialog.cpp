@@ -1,7 +1,7 @@
 #include "StreamSettingsDialog.hpp"
 
 #include "Application.hpp"
-#include "common/NetworkResult.hpp"
+#include "common/network/NetworkResult.hpp"
 #include "common/QLogging.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "singletons/WindowManager.hpp"
@@ -89,7 +89,7 @@ void StreamSettingsDialog::accept()
         getHelix()->updateChannel(
             this->roomId_, gameId, "", title,
             [](NetworkResult result) {
-                qCDebug(chatterinoCommon) << "OK!" << result.status();
+                qCDebug(chatterinoCommon) << "OK!" << *result.status();
             },
             [] {
                 QMessageBox::warning(

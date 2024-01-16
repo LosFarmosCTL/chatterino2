@@ -1,11 +1,13 @@
 #pragma once
 
 #include "common/FlagsEnum.hpp"
+#include "messages/layouts/MessageLayoutContext.hpp"
 #include "messages/LimitedQueue.hpp"
 #include "messages/LimitedQueueSnapshot.hpp"
 #include "messages/Selection.hpp"
 #include "util/ThreadGuard.hpp"
 #include "widgets/BaseWidget.hpp"
+#include "widgets/TooltipWidget.hpp"
 
 #include <pajlada/signals/signal.hpp>
 #include <QMenu>
@@ -73,11 +75,28 @@ public:
         Search,
     };
 
-    explicit ChannelView(BaseWidget *parent = nullptr, Split *split = nullptr,
+    /// Creates a channel view without a split.
+    /// In such a view, usercards and reply-threads can't be opened.
+    ///
+    /// @param parent The parent of this widget. Can be `nullptr`.
+    /// @param context The context in which this view is shown (e.g. as a usercard).
+    /// @param messagesLimit The maximum amount of messages this view will display.
+    explicit ChannelView(QWidget *parent, Context context = Context::None,
+                         size_t messagesLimit = 1000);
+
+    /// Creates a channel view in a split.
+    ///
+    /// @param parent The parent of this widget.
+    /// @param split The split containing this widget.
+    ///              @a split must be in the widget tree of @a parent.
+    /// @param context The context in which this view is shown (e.g. as a usercard).
+    /// @param messagesLimit The maximum amount of messages this view will display.
+    explicit ChannelView(QWidget *parent, Split *split,
                          Context context = Context::None,
                          size_t messagesLimit = 1000);
 
     void queueUpdate();
+    void queueUpdate(const QRect &area);
     Scrollbar &getScrollBar();
 
     QString getSelectedText();
@@ -92,8 +111,8 @@ public:
 
     void setEnableScrollingToBottom(bool);
     bool getEnableScrollingToBottom() const;
-    void setOverrideFlags(boost::optional<MessageElementFlags> value);
-    const boost::optional<MessageElementFlags> &getOverrideFlags() const;
+    void setOverrideFlags(std::optional<MessageElementFlags> value);
+    const std::optional<MessageElementFlags> &getOverrideFlags() const;
     void updateLastReadMessage();
 
     /**
@@ -111,16 +130,17 @@ public:
     bool pausable() const;
     void setPausable(bool value);
     bool paused() const;
-    void pause(PauseReason reason, boost::optional<uint> msecs = boost::none);
+    void pause(PauseReason reason,
+               std::optional<uint32_t> msecs = std::nullopt);
     void unpause(PauseReason reason);
 
     MessageElementFlags getFlags() const;
 
     ChannelPtr channel();
-    void setChannel(ChannelPtr channel_);
+    void setChannel(const ChannelPtr &underlyingChannel);
 
     void setFilters(const QList<QUuid> &ids);
-    const QList<QUuid> getFilterIds() const;
+    QList<QUuid> getFilterIds() const;
     FilterSetPtr getFilterSet() const;
 
     ChannelPtr sourceChannel() const;
@@ -162,9 +182,9 @@ protected:
     void themeChangedEvent() override;
     void scaleChangedEvent(float scale) override;
 
-    void resizeEvent(QResizeEvent *) override;
+    void resizeEvent(QResizeEvent * /*event*/) override;
 
-    void paintEvent(QPaintEvent *) override;
+    void paintEvent(QPaintEvent * /*event*/) override;
     void wheelEvent(QWheelEvent *event) override;
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -172,14 +192,15 @@ protected:
 #else
     void enterEvent(QEvent * /*event*/) override;
 #endif
-    void leaveEvent(QEvent *) override;
+    void leaveEvent(QEvent * /*event*/) override;
 
     void mouseMoveEvent(QMouseEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
 
-    void hideEvent(QHideEvent *) override;
+    void hideEvent(QHideEvent * /*event*/) override;
+    void showEvent(QShowEvent *event) override;
 
     void handleLinkClick(QMouseEvent *event, const Link &link,
                          MessageLayout *layout);
@@ -188,53 +209,46 @@ protected:
                          QPoint &relativePos, int &index);
 
 private:
+    struct InternalCtor {
+    };
+
+    ChannelView(InternalCtor tag, QWidget *parent, Split *split,
+                Context context, size_t messagesLimit);
+
     void initializeLayout();
     void initializeScrollbar();
     void initializeSignals();
 
     void messageAppended(MessagePtr &message,
-                         boost::optional<MessageFlags> overridingFlags);
+                         std::optional<MessageFlags> overridingFlags);
     void messageAddedAtStart(std::vector<MessagePtr> &messages);
     void messageRemoveFromStart(MessagePtr &message);
     void messageReplaced(size_t index, MessagePtr &replacement);
     void messagesUpdated();
 
-    void performLayout(bool causedByScrollbar = false);
+    void performLayout(bool causedByScrollbar = false,
+                       bool causedByShow = false);
     void layoutVisibleMessages(
         const LimitedQueueSnapshot<MessageLayoutPtr> &messages);
     void updateScrollbar(const LimitedQueueSnapshot<MessageLayoutPtr> &messages,
-                         bool causedByScrollbar);
+                         bool causedByScrollbar, bool causedByShow);
 
-    void drawMessages(QPainter &painter);
+    void drawMessages(QPainter &painter, const QRect &area);
     void setSelection(const SelectionItem &start, const SelectionItem &end);
+    void setSelection(const Selection &newSelection);
     void selectWholeMessage(MessageLayout *layout, int &messageIndex);
-    void getWordBounds(MessageLayout *layout,
-                       const MessageLayoutElement *element,
-                       const QPoint &relativePos, int &wordStart, int &wordEnd);
 
     void handleMouseClick(QMouseEvent *event,
                           const MessageLayoutElement *hoveredElement,
                           MessageLayoutPtr layout);
     void addContextMenuItems(const MessageLayoutElement *hoveredElement,
                              MessageLayoutPtr layout, QMouseEvent *event);
-    void addImageContextMenuItems(const MessageLayoutElement *hoveredElement,
-                                  MessageLayoutPtr layout, QMouseEvent *event,
-                                  QMenu &menu);
-    void addLinkContextMenuItems(const MessageLayoutElement *hoveredElement,
-                                 MessageLayoutPtr layout, QMouseEvent *event,
-                                 QMenu &menu);
-    void addMessageContextMenuItems(const MessageLayoutElement *hoveredElement,
-                                    MessageLayoutPtr layout, QMouseEvent *event,
-                                    QMenu &menu);
+    void addMessageContextMenuItems(QMenu *menu,
+                                    const MessageLayoutPtr &layout);
     void addTwitchLinkContextMenuItems(
-        const MessageLayoutElement *hoveredElement, MessageLayoutPtr layout,
-        QMouseEvent *event, QMenu &menu);
-    void addHiddenContextMenuItems(const MessageLayoutElement *hoveredElement,
-                                   MessageLayoutPtr layout, QMouseEvent *event,
-                                   QMenu &menu);
-    void addCommandExecutionContextMenuItems(
-        const MessageLayoutElement *hoveredElement, MessageLayoutPtr layout,
-        QMouseEvent *event, QMenu &menu);
+        QMenu *menu, const MessageLayoutElement *hoveredElement);
+    void addCommandExecutionContextMenuItems(QMenu *menu,
+                                             const MessageLayoutPtr &layout);
 
     int getLayoutWidth() const;
     void updatePauses();
@@ -255,25 +269,26 @@ private:
     void showReplyThreadPopup(const MessagePtr &message);
     bool canReplyToMessages() const;
 
-    QTimer *layoutCooldown_;
-    bool layoutQueued_;
+    bool layoutQueued_ = false;
 
-    QTimer updateTimer_;
-    bool updateQueued_ = false;
-    bool messageWasAdded_ = false;
     bool lastMessageHasAlternateBackground_ = false;
     bool lastMessageHasAlternateBackgroundReverse_ = true;
 
+    /// Tracks the area of animated elements in the last full repaint.
+    /// If this is empty (QRect::isEmpty()), no animated element is shown.
+    QRect animationArea_;
+
     bool pausable_ = false;
     QTimer pauseTimer_;
-    std::unordered_map<PauseReason, boost::optional<SteadyClock::time_point>>
+    std::unordered_map<PauseReason, std::optional<SteadyClock::time_point>>
         pauses_;
-    boost::optional<SteadyClock::time_point> pauseEnd_;
-    int pauseScrollOffset_ = 0;
+    std::optional<SteadyClock::time_point> pauseEnd_;
+    int pauseScrollMinimumOffset_ = 0;
+    int pauseScrollMaximumOffset_ = 0;
     // Keeps track how many message indices we need to offset the selection when we resume scrolling
     uint32_t pauseSelectionOffset_ = 0;
 
-    boost::optional<MessageElementFlags> overrideFlags_;
+    std::optional<MessageElementFlags> overrideFlags_;
     MessageLayoutPtr lastReadMessage_;
 
     ThreadGuard snapshotGuard_;
@@ -282,10 +297,10 @@ private:
     ChannelPtr channel_ = nullptr;
     ChannelPtr underlyingChannel_ = nullptr;
     ChannelPtr sourceChannel_ = nullptr;
-    Split *split_ = nullptr;
+    Split *split_;
 
     Scrollbar *scrollBar_;
-    EffectLabel *goToBottom_;
+    EffectLabel *goToBottom_{};
     bool showScrollBar_ = false;
 
     FilterSetPtr channelFilters_;
@@ -307,11 +322,10 @@ private:
     bool isLeftMouseDown_ = false;
     bool isRightMouseDown_ = false;
     bool isDoubleClick_ = false;
-    DoubleClickSelection doubleClickSelection_;
     QPointF lastLeftPressPosition_;
     QPointF lastRightPressPosition_;
-    QPointF lastDClickPosition_;
-    QTimer *clickTimer_;
+    QPointF lastDoubleClickPosition_;
+    QTimer clickTimer_;
 
     bool isScrolling_ = false;
     QPointF lastMiddlePressPosition_;
@@ -330,7 +344,7 @@ private:
     } cursors_;
 
     Selection selection_;
-    bool selecting_ = false;
+    Selection doubleClickSelection_;
 
     const Context context_;
 
@@ -343,17 +357,12 @@ private:
 
     std::unordered_set<std::shared_ptr<MessageLayout>> messagesOnScreen_;
 
-    static constexpr int leftPadding = 8;
-    static constexpr int scrollbarPadding = 8;
-
-private slots:
-    void wordFlagsChanged()
-    {
-        queueLayout();
-        update();
-    }
+    MessageColors messageColors_;
+    MessagePreferences messagePreferences_;
 
     void scrollUpdateRequested();
+
+    TooltipWidget *const tooltipWidget_{};
 };
 
 }  // namespace chatterino

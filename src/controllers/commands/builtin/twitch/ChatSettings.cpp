@@ -111,7 +111,7 @@ QString emoteOnly(const CommandContext &ctx)
     if (ctx.twitchChannel == nullptr)
     {
         ctx.channel->addMessage(makeSystemMessage(
-            "The /emoteonly command only works in Twitch channels"));
+            "The /emoteonly command only works in Twitch channels."));
         return "";
     }
 
@@ -140,7 +140,7 @@ QString emoteOnlyOff(const CommandContext &ctx)
     if (ctx.twitchChannel == nullptr)
     {
         ctx.channel->addMessage(makeSystemMessage(
-            "The /emoteonlyoff command only works in Twitch channels"));
+            "The /emoteonlyoff command only works in Twitch channels."));
         return "";
     }
 
@@ -170,7 +170,7 @@ QString subscribers(const CommandContext &ctx)
     if (ctx.twitchChannel == nullptr)
     {
         ctx.channel->addMessage(makeSystemMessage(
-            "The /subscribers command only works in Twitch channels"));
+            "The /subscribers command only works in Twitch channels."));
         return "";
     }
 
@@ -200,7 +200,7 @@ QString subscribersOff(const CommandContext &ctx)
     if (ctx.twitchChannel == nullptr)
     {
         ctx.channel->addMessage(makeSystemMessage(
-            "The /subscribersoff command only works in Twitch channels"));
+            "The /subscribersoff command only works in Twitch channels."));
         return "";
     }
 
@@ -230,7 +230,7 @@ QString slow(const CommandContext &ctx)
     if (ctx.twitchChannel == nullptr)
     {
         ctx.channel->addMessage(makeSystemMessage(
-            "The /slow command only works in Twitch channels"));
+            "The /slow command only works in Twitch channels."));
         return "";
     }
 
@@ -277,7 +277,7 @@ QString slowOff(const CommandContext &ctx)
     if (ctx.twitchChannel == nullptr)
     {
         ctx.channel->addMessage(makeSystemMessage(
-            "The /slowoff command only works in Twitch channels"));
+            "The /slowoff command only works in Twitch channels."));
         return "";
     }
 
@@ -289,7 +289,7 @@ QString slowOff(const CommandContext &ctx)
     }
 
     getHelix()->updateSlowMode(ctx.twitchChannel->roomId(),
-                               currentUser->getUserId(), boost::none,
+                               currentUser->getUserId(), std::nullopt,
                                successCallback, failureCallback(ctx.channel));
 
     return "";
@@ -307,7 +307,7 @@ QString followers(const CommandContext &ctx)
     if (ctx.twitchChannel == nullptr)
     {
         ctx.channel->addMessage(makeSystemMessage(
-            "The /followers command only works in Twitch channels"));
+            "The /followers command only works in Twitch channels."));
         return "";
     }
 
@@ -355,7 +355,7 @@ QString followersOff(const CommandContext &ctx)
     if (ctx.twitchChannel == nullptr)
     {
         ctx.channel->addMessage(makeSystemMessage(
-            "The /followersoff command only works in Twitch channels"));
+            "The /followersoff command only works in Twitch channels."));
         return "";
     }
 
@@ -367,7 +367,7 @@ QString followersOff(const CommandContext &ctx)
     }
 
     getHelix()->updateFollowerMode(
-        ctx.twitchChannel->roomId(), currentUser->getUserId(), boost::none,
+        ctx.twitchChannel->roomId(), currentUser->getUserId(), std::nullopt,
         successCallback, failureCallback(ctx.channel));
 
     return "";
@@ -385,7 +385,7 @@ QString uniqueChat(const CommandContext &ctx)
     if (ctx.twitchChannel == nullptr)
     {
         ctx.channel->addMessage(makeSystemMessage(
-            "The /uniquechat command only works in Twitch channels"));
+            "The /uniquechat command only works in Twitch channels."));
         return "";
     }
 
@@ -415,7 +415,7 @@ QString uniqueChatOff(const CommandContext &ctx)
     if (ctx.twitchChannel == nullptr)
     {
         ctx.channel->addMessage(makeSystemMessage(
-            "The /uniquechatoff command only works in Twitch channels"));
+            "The /uniquechatoff command only works in Twitch channels."));
         return "";
     }
 

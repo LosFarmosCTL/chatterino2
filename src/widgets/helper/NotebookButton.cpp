@@ -138,7 +138,7 @@ void NotebookButton::paintEvent(QPaintEvent *event)
         default:;
     }
 
-    Button::paintEvent(event);
+    this->paintButton(painter);
 }
 
 void NotebookButton::mouseReleaseEvent(QMouseEvent *event)
@@ -158,13 +158,15 @@ void NotebookButton::mouseReleaseEvent(QMouseEvent *event)
 void NotebookButton::dragEnterEvent(QDragEnterEvent *event)
 {
     if (!event->mimeData()->hasFormat("chatterino/split"))
+    {
         return;
+    }
 
     event->acceptProposedAction();
 
-    auto e = new QMouseEvent(QMouseEvent::MouseButtonPress,
-                             QPointF(this->width() / 2, this->height() / 2),
-                             Qt::LeftButton, Qt::LeftButton, {});
+    auto *e = new QMouseEvent(QMouseEvent::MouseButtonPress,
+                              QPointF(this->width() / 2, this->height() / 2),
+                              Qt::LeftButton, Qt::LeftButton, {});
     Button::mousePressEvent(e);
     delete e;
 }
@@ -174,9 +176,9 @@ void NotebookButton::dragLeaveEvent(QDragLeaveEvent *)
     this->mouseDown_ = true;
     this->update();
 
-    auto e = new QMouseEvent(QMouseEvent::MouseButtonRelease,
-                             QPointF(this->width() / 2, this->height() / 2),
-                             Qt::LeftButton, Qt::LeftButton, {});
+    auto *e = new QMouseEvent(QMouseEvent::MouseButtonRelease,
+                              QPointF(this->width() / 2, this->height() / 2),
+                              Qt::LeftButton, Qt::LeftButton, {});
     Button::mouseReleaseEvent(e);
     delete e;
 }
@@ -211,12 +213,12 @@ void NotebookButton::dropEvent(QDropEvent *event)
 
 void NotebookButton::hideEvent(QHideEvent *)
 {
-    this->parent_->performLayout();
+    this->parent_->refresh();
 }
 
 void NotebookButton::showEvent(QShowEvent *)
 {
-    this->parent_->performLayout();
+    this->parent_->refresh();
 }
 
 }  // namespace chatterino

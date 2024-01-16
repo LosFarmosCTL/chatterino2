@@ -43,7 +43,9 @@ QString formatSize(qint64 size)
     for (i = 0; i < units.size() - 1; i++)
     {
         if (outputSize < 1024)
+        {
             break;
+        }
         outputSize = outputSize / 1024;
     }
     return QString("%0 %1").arg(outputSize, 0, 'f', 2).arg(units[i]);
@@ -169,7 +171,8 @@ ModerationPage::ModerationPage()
         view->getTableView()->horizontalHeader()->setSectionResizeMode(
             0, QHeaderView::Stretch);
 
-        view->addButtonPressed.connect([] {
+        // We can safely ignore this signal connection since we own the view
+        std::ignore = view->addButtonPressed.connect([] {
             getSettings()->loggedChannels.append(ChannelLog("channel"));
         });
 
@@ -209,7 +212,8 @@ ModerationPage::ModerationPage()
         view->getTableView()->horizontalHeader()->setSectionResizeMode(
             0, QHeaderView::Stretch);
 
-        view->addButtonPressed.connect([] {
+        // We can safely ignore this signal connection since we own the view
+        std::ignore = view->addButtonPressed.connect([] {
             getSettings()->moderationActions.append(
                 ModerationAction("/timeout {user.name} 300"));
         });
@@ -246,7 +250,7 @@ void ModerationPage::addModerationButtonSettings(
     const auto valueChanged = [=, this] {
         const auto index = QObject::sender()->objectName().toInt();
 
-        const auto line = this->durationInputs_[index];
+        auto *const line = this->durationInputs_[index];
         const auto duration = line->text().toInt();
         const auto unit = this->unitInputs_[index]->currentText();
 

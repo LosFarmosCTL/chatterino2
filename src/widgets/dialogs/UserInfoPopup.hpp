@@ -1,22 +1,16 @@
 #pragma once
 
-#include "providers/twitch/api/Helix.hpp"
-#include "singletons/Paths.hpp"
 #include "widgets/DraggablePopup.hpp"
+#include "widgets/helper/EffectLabel.hpp"
 
 #include <pajlada/signals/scoped-connection.hpp>
 #include <pajlada/signals/signal.hpp>
-#include <QMovie>
 
 #include <chrono>
 
 class QCheckBox;
 
 namespace chatterino {
-
-inline static const QString SEVENTV_USER_API =
-    "https://api.7tv.app/v2/users/%1";
-inline static const QString SEVENTV_CDR_PP = "https://cdn.7tv.app/pp/%1/%2";
 
 class Channel;
 using ChannelPtr = std::shared_ptr<Channel>;
@@ -29,31 +23,28 @@ class UserInfoPopup final : public DraggablePopup
     Q_OBJECT
 
 public:
-    UserInfoPopup(bool closeAutomatically, QWidget *parent,
-                  Split *split = nullptr);
+    /**
+     * @param closeAutomatically Decides whether the popup should close when it loses focus
+     * @param split Will be used as the popup's parent. Must not be null
+     */
+    UserInfoPopup(bool closeAutomatically, Split *split);
 
     void setData(const QString &name, const ChannelPtr &channel);
     void setData(const QString &name, const ChannelPtr &contextChannel,
                  const ChannelPtr &openingChannel);
 
 protected:
-    virtual void themeChangedEvent() override;
-    virtual void scaleChangedEvent(float scale) override;
+    void themeChangedEvent() override;
+    void scaleChangedEvent(float scale) override;
 
 private:
     void installEvents();
     void updateUserData();
     void updateLatestMessages();
-    void updateFocusLoss();
 
-    void loadAvatar(const HelixUser &user);
-    void fetchSevenTVAvatar(const HelixUser &user);
-    void setSevenTVAvatar(const QString &filename);
-    void saveCacheAvatar(const QByteArray &avatar, const QString &filename);
-    QString getFilename(const QString &url);
-
-    bool isMod_;
-    bool isBroadcaster_;
+    void loadAvatar(const QUrl &url);
+    bool isMod_{};
+    bool isBroadcaster_{};
 
     Split *split_;
 
@@ -74,9 +65,9 @@ private:
     std::mutex checkAfkRateLimiter_;
 
     // If we should close the dialog automatically if the user clicks out
-    // Initially set based on the "Automatically close usercard when it loses focus" setting
-    // If that setting is enabled, this can be toggled on and off using the pin in the top-right corner
-    bool closeAutomatically_;
+    // Set based on the "Automatically close usercard when it loses focus" setting
+    // Pinned status is tracked in DraggablePopup::isPinned_.
+    const bool closeAutomatically_;
 
     struct {
         Button *avatarButton = nullptr;
@@ -87,8 +78,6 @@ private:
         Label *followerCountLabel = nullptr;
         Label *createdDateLabel = nullptr;
         Label *userIDLabel = nullptr;
-        // Can be uninitialized if usercard is not configured to close on focus loss
-        Button *pinButton = nullptr;
         Label *followageLabel = nullptr;
         Label *subageLabel = nullptr;
 
@@ -97,6 +86,8 @@ private:
 
         Label *noMessagesLabel = nullptr;
         ChannelView *latestMessages = nullptr;
+
+        EffectLabel2 *usercardLabel = nullptr;
     } ui_;
 
     class TimeoutWidget : public BaseWidget

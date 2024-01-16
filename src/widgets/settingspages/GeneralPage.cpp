@@ -5,8 +5,10 @@
 #include "common/Version.hpp"
 #include "controllers/hotkeys/HotkeyCategory.hpp"
 #include "controllers/hotkeys/HotkeyController.hpp"
+#include "controllers/sound/ISoundController.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
+#include "singletons/CrashHandler.hpp"
 #include "singletons/Fonts.hpp"
 #include "singletons/NativeMessaging.hpp"
 #include "singletons/Paths.hpp"
@@ -20,6 +22,7 @@
 #include "widgets/settingspages/GeneralPageView.hpp"
 #include "widgets/splits/SplitInput.hpp"
 
+#include <magic_enum/magic_enum.hpp>
 #include <QDesktopServices>
 #include <QFileDialog>
 #include <QFontDialog>
@@ -86,12 +89,12 @@ namespace {
 
 GeneralPage::GeneralPage()
 {
-    auto y = new QVBoxLayout;
-    auto x = new QHBoxLayout;
-    auto view = new GeneralPageView;
+    auto *y = new QVBoxLayout;
+    auto *x = new QHBoxLayout;
+    auto *view = new GeneralPageView;
     this->view_ = view;
     x->addWidget(view);
-    auto z = new QFrame;
+    auto *z = new QFrame;
     z->setLayout(x);
     y->addWidget(z);
     this->setLayout(y);
@@ -104,9 +107,13 @@ GeneralPage::GeneralPage()
 bool GeneralPage::filterElements(const QString &query)
 {
     if (this->view_)
+    {
         return this->view_->filterElements(query) || query.isEmpty();
+    }
     else
+    {
         return false;
+    }
 }
 
 void GeneralPage::initLayout(GeneralPageView &layout)
@@ -114,8 +121,18 @@ void GeneralPage::initLayout(GeneralPageView &layout)
     auto &s = *getSettings();
 
     layout.addTitle("Interface");
-    layout.addDropdown("Theme", {"White", "Light", "Dark", "Black"},
-                       getApp()->themes->themeName);
+
+    layout.addDropdown<QString>(
+        "Theme", getApp()->themes->availableThemes(),
+        getApp()->themes->themeName,
+        [](const auto *combo, const auto &themeKey) {
+            return combo->findData(themeKey, Qt::UserRole);
+        },
+        [](const auto &args) {
+            return args.combobox->itemData(args.index, Qt::UserRole).toString();
+        },
+        {}, Theme::fallbackTheme.name);
+
     layout.addDropdown<QString>(
         "Font", {"Segoe UI", "Arial", "Choose..."},
         getApp()->fonts->chatFontFamily,
@@ -141,9 +158,13 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         s.uiScale,
         [](auto val) {
             if (val == 1)
+            {
                 return QString("Default");
+            }
             else
+            {
                 return QString::number(val) + "x";
+            }
         },
         [](auto args) {
             return fuzzyToFloat(args.value, 1.f);
@@ -188,6 +209,30 @@ void GeneralPage::initLayout(GeneralPageView &layout)
             false);
     tabDirectionDropdown->setMinimumWidth(
         tabDirectionDropdown->minimumSizeHint().width());
+
+    layout.addDropdown<std::underlying_type<NotebookTabVisibility>::type>(
+        "Tab visibility", {"All tabs", "Only live tabs"}, s.tabVisibility,
+        [](auto val) {
+            switch (val)
+            {
+                case NotebookTabVisibility::LiveOnly:
+                    return "Only live tabs";
+                case NotebookTabVisibility::AllTabs:
+                default:
+                    return "All tabs";
+            }
+        },
+        [](auto args) {
+            if (args.value == "Only live tabs")
+            {
+                return NotebookTabVisibility::LiveOnly;
+            }
+            else
+            {
+                return NotebookTabVisibility::AllTabs;
+            }
+        },
+        false, "Choose which tabs are visible in the notebook");
 
     layout.addCheckbox(
         "Show message reply context", s.hideReplyContext, true,
@@ -243,20 +288,32 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         s.pauseOnHoverDuration,
         [](auto val) {
             if (val < -0.5f)
+            {
                 return QString("Indefinite");
+            }
             else if (val < 0.001f)
+            {
                 return QString("Disabled");
+            }
             else
+            {
                 return QString::number(val) + "s";
+            }
         },
         [](auto args) {
             if (args.index == 0)
+            {
                 return 0.0f;
+            }
             else if (args.value == "Indefinite")
+            {
                 return -1.0f;
+            }
             else
+            {
                 return fuzzyToFloat(args.value,
                                     std::numeric_limits<float>::infinity());
+            }
         });
     addKeyboardModifierSetting(layout, "Pause while holding a key",
                                s.pauseChatModifier);
@@ -265,9 +322,13 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         s.mouseScrollMultiplier,
         [](auto val) {
             if (val == 1)
+            {
                 return QString("Default");
+            }
             else
+            {
                 return QString::number(val) + "x";
+            }
         },
         [](auto args) {
             return fuzzyToFloat(args.value, 1.f);
@@ -297,6 +358,74 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         false,
         "Specify how Chatterino will handle messages that exceed Twitch "
         "message limits");
+    layout.addDropdown<std::underlying_type<UsernameRightClickBehavior>::type>(
+        "Username right-click behavior",
+        {
+            "Reply",
+            "Mention",
+            "Ignore",
+        },
+        s.usernameRightClickBehavior,
+        [](auto index) {
+            return index;
+        },
+        [](auto args) {
+            return static_cast<UsernameRightClickBehavior>(args.index);
+        },
+        false,
+        "Specify how Chatterino will handle right-clicking a username in "
+        "chat when not holding the modifier.");
+    layout.addDropdown<std::underlying_type<UsernameRightClickBehavior>::type>(
+        "Username right-click with modifier behavior",
+        {
+            "Reply",
+            "Mention",
+            "Ignore",
+        },
+        s.usernameRightClickModifierBehavior,
+        [](auto index) {
+            return index;
+        },
+        [](auto args) {
+            return static_cast<UsernameRightClickBehavior>(args.index);
+        },
+        false,
+        "Specify how Chatterino will handle right-clicking a username in "
+        "chat when holding down the modifier.");
+    layout.addDropdown<std::underlying_type<Qt::KeyboardModifier>::type>(
+        "Modifier for alternate right-click action",
+        {"Shift", "Control", "Alt", META_KEY}, s.usernameRightClickModifier,
+        [](int index) {
+            switch (index)
+            {
+                case Qt::ShiftModifier:
+                    return 0;
+                case Qt::ControlModifier:
+                    return 1;
+                case Qt::AltModifier:
+                    return 2;
+                case Qt::MetaModifier:
+                    return 3;
+                default:
+                    return 0;
+            }
+        },
+        [](DropdownArgs args) {
+            switch (args.index)
+            {
+                case 0:
+                    return Qt::ShiftModifier;
+                case 1:
+                    return Qt::ControlModifier;
+                case 2:
+                    return Qt::AltModifier;
+                case 3:
+                    return Qt::MetaModifier;
+                default:
+                    return Qt::NoModifier;
+            }
+        },
+        false);
 
     layout.addTitle("Rainbow username colors");
     layout.addCheckbox(
@@ -387,19 +516,25 @@ void GeneralPage::initLayout(GeneralPageView &layout)
     layout.addCheckbox("Animate only when Chatterino is focused",
                        s.animationsWhenFocused);
     layout.addCheckbox(
-        "Enable zero-width emotes", s.enableZeroWidthEmotes,
+        "Enable zero-width emotes", s.enableZeroWidthEmotes, false,
         "When disabled, emotes that overlap other emotes, such as BTTV's "
         "cvMask and 7TV's RainTime, will appear as normal emotes.");
     layout.addCheckbox("Enable emote auto-completion by typing :",
                        s.emoteCompletionWithColon);
+    layout.addCheckbox("Use experimental smarter emote completion.",
+                       s.useSmartEmoteCompletion);
     layout.addDropdown<float>(
         "Size", {"0.5x", "0.75x", "Default", "1.25x", "1.5x", "2x", "3x", "4x"},
         s.emoteScale,
         [](auto val) {
             if (val == 1)
+            {
                 return QString("Default");
+            }
             else
+            {
                 return QString::number(val) + "x";
+            }
         },
         [](auto args) {
             return fuzzyToFloat(args.value, 1.f);
@@ -428,16 +563,30 @@ void GeneralPage::initLayout(GeneralPageView &layout)
                 });
         },
         false);
-    layout.addDropdown<int>(
-        "Show info on hover", {"Don't show", "Always show", "Hold shift"},
+    layout.addDropdown<std::underlying_type<ThumbnailPreviewMode>::type>(
+        "Show emote & badge thumbnail on hover",
+        {
+            "Don't show",
+            "Always show",
+            "Hold shift",
+        },
         s.emotesTooltipPreview,
-        [](int index) {
-            return index;
+        [](auto val) {
+            switch (val)
+            {
+                case ThumbnailPreviewMode::DontShow:
+                    return "Don't show";
+                case ThumbnailPreviewMode::AlwaysShow:
+                    return "Always show";
+                case ThumbnailPreviewMode::ShowOnShift:
+                    return "Hold shift";
+            }
+            return "";
         },
         [](auto args) {
             return args.index;
         },
-        false, "Show emote name, provider, and author on hover.");
+        false);
     layout.addDropdown("Emoji style",
                        {
                            "Twitter",
@@ -456,6 +605,11 @@ void GeneralPage::initLayout(GeneralPageView &layout)
     layout.addCheckbox("Show 7TV channel emotes", s.enableSevenTVChannelEmotes);
     layout.addCheckbox("Enable 7TV live emote updates (requires restart)",
                        s.enableSevenTVEventAPI);
+    layout.addCheckbox("Send activity to 7TV", s.sendSevenTVActivity, false,
+                       "When enabled, Chatterino will signal an activity to "
+                       "7TV when you send a chat mesage. This is used for "
+                       "badges, paints, and personal emotes. When disabled, no "
+                       "activity is sent and others won't see your cosmetics.");
 
     layout.addTitle("Streamer Mode");
     layout.addDescription(
@@ -487,8 +641,9 @@ void GeneralPage::initLayout(GeneralPageView &layout)
     layout.addCheckbox(
         "Hide viewer count and stream length while hovering over split header",
         s.streamerModeHideViewerCountAndDuration);
-    layout.addCheckbox("Hide moderation actions", s.streamerModeHideModActions,
-                       false, "Hide bans & timeouts from appearing in chat.");
+    layout.addCheckbox(
+        "Hide moderation actions", s.streamerModeHideModActions, false,
+        "Hide bans, timeouts, and automod messages from appearing in chat.");
     layout.addCheckbox("Mute mention sounds", s.streamerModeMuteMentions, false,
                        "Mute your ping sound from playing.");
     layout.addCheckbox(
@@ -516,23 +671,39 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         {"Off", "Small", "Medium", "Large"}, s.thumbnailSize,
         [](auto val) {
             if (val == 0)
+            {
                 return QString("Off");
+            }
             else if (val == 100)
+            {
                 return QString("Small");
+            }
             else if (val == 200)
+            {
                 return QString("Medium");
+            }
             else if (val == 300)
+            {
                 return QString("Large");
+            }
             else
+            {
                 return QString::number(val);
+            }
         },
         [](auto args) {
             if (args.value == "Small")
+            {
                 return 100;
+            }
             else if (args.value == "Medium")
+            {
                 return 200;
+            }
             else if (args.value == "Large")
+            {
                 return 300;
+            }
 
             return fuzzyToInt(args.value, 0);
         });
@@ -541,23 +712,39 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         s.thumbnailSizeStream,
         [](auto val) {
             if (val == 0)
+            {
                 return QString("Off");
+            }
             else if (val == 1)
+            {
                 return QString("Small");
+            }
             else if (val == 2)
+            {
                 return QString("Medium");
+            }
             else if (val == 3)
+            {
                 return QString("Large");
+            }
             else
+            {
                 return QString::number(val);
+            }
         },
         [](auto args) {
             if (args.value == "Small")
+            {
                 return 1;
+            }
             else if (args.value == "Medium")
+            {
                 return 2;
+            }
             else if (args.value == "Large")
+            {
                 return 3;
+            }
 
             return fuzzyToInt(args.value, 0);
         });
@@ -627,7 +814,7 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         "Files that are used often (such as emotes) are saved to disk to "
         "reduce bandwidth usage and to speed up loading.");
 
-    auto cachePathLabel = layout.addDescription("placeholder :D");
+    auto *cachePathLabel = layout.addDescription("placeholder :D");
     getSettings()->cachePath.connect([cachePathLabel](const auto &,
                                                       auto) mutable {
         QString newPath = getPaths()->cacheDirectory();
@@ -641,7 +828,7 @@ void GeneralPage::initLayout(GeneralPageView &layout)
 
     // Choose and reset buttons
     {
-        auto box = new QHBoxLayout;
+        auto *box = new QHBoxLayout;
 
         box->addWidget(layout.makeButton("Choose cache path", [this]() {
             getSettings()->cachePath = QFileDialog::getExistingDirectory(this);
@@ -761,8 +948,14 @@ void GeneralPage::initLayout(GeneralPageView &layout)
                            s.openLinksIncognito);
     }
 
-    layout.addCheckbox(
-        "Restart on crash", s.restartOnCrash, false,
+    layout.addCustomCheckbox(
+        "Restart on crash (requires restart)",
+        [] {
+            return getApp()->crashHandler->shouldRecover();
+        },
+        [](bool on) {
+            return getApp()->crashHandler->saveShouldRecover(on);
+        },
         "When possible, restart Chatterino if the program crashes");
 
 #if defined(Q_OS_LINUX) && !defined(NO_QTKEYCHAIN)
@@ -774,8 +967,6 @@ void GeneralPage::initLayout(GeneralPageView &layout)
     }
 #endif
 
-    layout.addCheckbox("Show 7TV Animated Profile Picture",
-                       s.displaySevenTVAnimatedProfile);
     layout.addCheckbox(
         "Show moderation messages", s.hideModerationActions, true,
         "Show messages for timeouts, bans, and other moderator actions.");
@@ -845,9 +1036,13 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         "Username font weight", {"50", "Default", "75", "100"}, s.boldScale,
         [](auto val) {
             if (val == 63)
+            {
                 return QString("Default");
+            }
             else
+            {
                 return QString::number(val);
+            }
         },
         [](auto args) {
             return fuzzyToFloat(args.value, 63.f);
@@ -882,6 +1077,13 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         "Highlight received inline whispers", s.highlightInlineWhispers, false,
         "Highlight the whispers shown in all splits.\nIf \"Show Twitch "
         "whispers inline\" is disabled, this setting will do nothing.");
+    layout.addCheckbox(
+        "Automatically subscribe to participated reply threads",
+        s.autoSubToParticipatedThreads, false,
+        "When enabled, you will automatically subscribe to reply threads you "
+        "participate in.\n"
+        "This means reply threads you participate in will use your "
+        "\"Subscribed Reply Threads\" highlight settings.");
     layout.addCheckbox("Load message history on connect",
                        s.loadTwitchMessageHistoryOnConnect);
     // TODO: Change phrasing to use better english once we can tag settings, right now it's kept as history instead of historical so that the setting shows up when the user searches for history
@@ -1014,10 +1216,23 @@ void GeneralPage::initLayout(GeneralPageView &layout)
     helixTimegateModerators->setMinimumWidth(
         helixTimegateModerators->minimumSizeHint().width());
 
+    layout.addCheckbox(
+        "Show send message button", s.showSendButton, false,
+        "Show a Send button next to each split input that can be "
+        "clicked to send the message");
+
+    auto *soundBackend = layout.addDropdownEnumClass<SoundBackend>(
+        "Sound backend (requires restart)",
+        magic_enum::enum_names<SoundBackend>(), s.soundBackend,
+        "Change this only if you're noticing issues with sound playback on "
+        "your system",
+        {});
+    soundBackend->setMinimumWidth(soundBackend->minimumSizeHint().width());
+
     layout.addStretch();
 
     // invisible element for width
-    auto inv = new BaseWidget(this);
+    auto *inv = new BaseWidget(this);
     //    inv->setScaleIndependantWidth(600);
     layout.addWidget(inv);
 }
@@ -1053,9 +1268,13 @@ QString GeneralPage::getFont(const DropdownArgs &args) const
         auto font = dialog.getFont(&ok, this->window());
 
         if (ok)
+        {
             return font.family();
+        }
         else
+        {
             return args.combobox->itemText(0);
+        }
     }
     return args.value;
 }

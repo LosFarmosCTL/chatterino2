@@ -93,19 +93,19 @@ NotebookTab::NotebookTab(Notebook *notebook)
         [this]() {
             this->notebook_->removePage(this->page);
         },
-        getApp()->hotkeys->getDisplaySequence(HotkeyCategory::Window,
-                                              "removeTab"));
+        getIApp()->getHotkeys()->getDisplaySequence(HotkeyCategory::Window,
+                                                    "removeTab"));
 
     this->menu_.addAction(
         "Popup Tab",
         [this]() {
-            if (auto container = dynamic_cast<SplitContainer *>(this->page))
+            if (auto *container = dynamic_cast<SplitContainer *>(this->page))
             {
                 container->popup();
             }
         },
-        getApp()->hotkeys->getDisplaySequence(HotkeyCategory::Window, "popup",
-                                              {{"window"}}));
+        getIApp()->getHotkeys()->getDisplaySequence(HotkeyCategory::Window,
+                                                    "popup", {{"window"}}));
 
     highlightNewMessagesAction_ =
         new QAction("Mark Tab as Unread on New Messages", &this->menu_);
@@ -124,11 +124,11 @@ NotebookTab::NotebookTab(Notebook *notebook)
 
 void NotebookTab::showRenameDialog()
 {
-    auto dialog = new QDialog(this);
+    auto *dialog = new QDialog(this);
 
-    auto vbox = new QVBoxLayout;
+    auto *vbox = new QVBoxLayout;
 
-    auto lineEdit = new QLineEdit;
+    auto *lineEdit = new QLineEdit;
     lineEdit->setText(this->getCustomTitle());
     lineEdit->setPlaceholderText(this->getDefaultTitle());
     lineEdit->selectAll();
@@ -137,7 +137,7 @@ void NotebookTab::showRenameDialog()
     vbox->addWidget(lineEdit);
     vbox->addStretch(1);
 
-    auto buttonBox =
+    auto *buttonBox =
         new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 
     vbox->addWidget(buttonBox);
@@ -196,7 +196,7 @@ int NotebookTab::normalTabWidth()
     float scale = this->scale();
     int width;
 
-    QFontMetrics metrics = getApp()->fonts->getFontMetrics(
+    auto metrics = getIApp()->getFonts()->getFontMetrics(
         FontStyle::UiTabs, float(qreal(this->scale()) * deviceDpi(this)));
 
     if (this->hasXButton())
@@ -234,7 +234,7 @@ void NotebookTab::updateSize()
     if (this->width() != width || this->height() != height)
     {
         this->resize(width, height);
-        this->notebook_->performLayout();
+        this->notebook_->refresh();
     }
 }
 
@@ -290,7 +290,7 @@ void NotebookTab::titleUpdated()
 {
     // Queue up save because: Tab title changed
     getApp()->windows->queueSave();
-    this->notebook_->performLayout();
+    this->notebook_->refresh();
     this->updateSize();
     this->update();
 }
@@ -327,28 +327,49 @@ void NotebookTab::setTabLocation(NotebookTabLocation location)
     }
 }
 
-void NotebookTab::setLive(bool isLive)
+bool NotebookTab::setLive(bool isLive)
 {
     if (this->isLive_ != isLive)
     {
         this->isLive_ = isLive;
         this->update();
+        return true;
     }
+
+    return false;
+}
+
+bool NotebookTab::isLive() const
+{
+    return this->isLive_;
 }
 
 void NotebookTab::setHighlightState(HighlightState newHighlightStyle)
 {
-    if (this->isSelected() || (!this->highlightEnabled_ &&
-                               newHighlightStyle == HighlightState::NewMessage))
+    if (this->isSelected())
     {
         return;
     }
-    if (this->highlightState_ != HighlightState::Highlighted)
-    {
-        this->highlightState_ = newHighlightStyle;
 
-        this->update();
+    if (!this->highlightEnabled_ &&
+        newHighlightStyle == HighlightState::NewMessage)
+    {
+        return;
     }
+
+    if (this->highlightState_ == newHighlightStyle ||
+        this->highlightState_ == HighlightState::Highlighted)
+    {
+        return;
+    }
+
+    this->highlightState_ = newHighlightStyle;
+    this->update();
+}
+
+HighlightState NotebookTab::highlightState() const
+{
+    return this->highlightState_;
 }
 
 void NotebookTab::setHighlightsEnabled(const bool &newVal)
@@ -402,7 +423,7 @@ void NotebookTab::moveAnimated(QPoint pos, bool animated)
 
 void NotebookTab::paintEvent(QPaintEvent *)
 {
-    auto app = getApp();
+    auto *app = getApp();
     QPainter painter(this);
     float scale = this->scale();
 
@@ -416,16 +437,23 @@ void NotebookTab::paintEvent(QPaintEvent *)
 
     // select the right tab colors
     Theme::TabColors colors;
-    Theme::TabColors regular = this->theme->tabs.regular;
 
     if (this->selected_)
+    {
         colors = this->theme->tabs.selected;
+    }
     else if (this->highlightState_ == HighlightState::Highlighted)
+    {
         colors = this->theme->tabs.highlighted;
+    }
     else if (this->highlightState_ == HighlightState::NewMessage)
+    {
         colors = this->theme->tabs.newMessage;
+    }
     else
+    {
         colors = this->theme->tabs.regular;
+    }
 
     bool windowFocused = this->window() == QApplication::activeWindow();
 
@@ -774,6 +802,11 @@ void NotebookTab::wheelEvent(QWheelEvent *event)
     {
         selectTab(verticalDelta);
     }
+}
+
+void NotebookTab::update()
+{
+    Button::update();
 }
 
 QRect NotebookTab::getXRect()

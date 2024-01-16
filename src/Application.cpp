@@ -10,7 +10,15 @@
 #include "controllers/hotkeys/HotkeyController.hpp"
 #include "controllers/ignores/IgnoreController.hpp"
 #include "controllers/notifications/NotificationController.hpp"
-#include "controllers/sound/SoundController.hpp"
+#include "controllers/sound/ISoundController.hpp"
+#include "providers/seventv/SeventvAPI.hpp"
+#include "singletons/ImageUploader.hpp"
+#ifdef CHATTERINO_HAVE_PLUGINS
+#    include "controllers/plugins/PluginController.hpp"
+#endif
+#include "controllers/sound/MiniaudioBackend.hpp"
+#include "controllers/sound/NullBackend.hpp"
+#include "controllers/twitch/LiveController.hpp"
 #include "controllers/userdata/UserDataController.hpp"
 #include "debug/AssertInGuiThread.hpp"
 #include "messages/Message.hpp"
@@ -27,9 +35,11 @@
 #include "providers/twitch/PubSubActions.hpp"
 #include "providers/twitch/PubSubManager.hpp"
 #include "providers/twitch/PubSubMessages.hpp"
+#include "providers/twitch/pubsubmessages/LowTrustUsers.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
 #include "providers/twitch/TwitchMessageBuilder.hpp"
+#include "singletons/CrashHandler.hpp"
 #include "singletons/Emotes.hpp"
 #include "singletons/Fonts.hpp"
 #include "singletons/helper/LoggingChannel.hpp"
@@ -51,6 +61,36 @@
 
 #include <atomic>
 
+namespace {
+
+using namespace chatterino;
+
+ISoundController *makeSoundController(Settings &settings)
+{
+    SoundBackend soundBackend = settings.soundBackend;
+    switch (soundBackend)
+    {
+        case SoundBackend::Miniaudio: {
+            return new MiniaudioBackend();
+        }
+        break;
+
+        case SoundBackend::Null: {
+            return new NullBackend();
+        }
+        break;
+
+        default: {
+            return new MiniaudioBackend();
+        }
+        break;
+    }
+}
+
+const QString TWITCH_PUBSUB_URL = "wss://pubsub-edge.twitch.tv";
+
+}  // namespace
+
 namespace chatterino {
 
 static std::atomic<bool> isAppInitialized{false};
@@ -67,14 +107,18 @@ IApplication::IApplication()
 // It will create the instances of the major classes, and connect their signals
 // to each other
 
-Application::Application(Settings &_settings, Paths &_paths)
-    : themes(&this->emplace<Theme>())
+Application::Application(Settings &_settings, Paths &_paths, const Args &_args)
+    : args_(_args)
+    , themes(&this->emplace<Theme>())
     , fonts(&this->emplace<Fonts>())
     , emotes(&this->emplace<Emotes>())
     , accounts(&this->emplace<AccountController>())
     , hotkeys(&this->emplace<HotkeyController>())
     , windows(&this->emplace<WindowManager>())
     , toasts(&this->emplace<Toasts>())
+    , imageUploader(&this->emplace<ImageUploader>())
+    , seventvAPI(&this->emplace<SeventvAPI>())
+    , crashHandler(&this->emplace<CrashHandler>())
 
     , commands(&this->emplace<CommandController>())
     , notifications(&this->emplace<NotificationController>())
@@ -84,14 +128,28 @@ Application::Application(Settings &_settings, Paths &_paths)
     , ffzBadges(&this->emplace<FfzBadges>())
     , seventvBadges(&this->emplace<SeventvBadges>())
     , userData(&this->emplace<UserDataController>())
-    , sound(&this->emplace<SoundController>())
-    , logging(&this->emplace<Logging>())
+    , sound(&this->emplace<ISoundController>(makeSoundController(_settings)))
+    , twitchLiveController(&this->emplace<TwitchLiveController>())
+    , twitchPubSub(new PubSub(TWITCH_PUBSUB_URL))
+    , logging(new Logging(_settings))
+#ifdef CHATTERINO_HAVE_PLUGINS
+    , plugins(&this->emplace<PluginController>())
+#endif
 {
-    this->instance = this;
+    Application::instance = this;
 
-    this->fonts->fontChanged.connect([this]() {
+    // We can safely ignore this signal's connection since the Application will always
+    // be destroyed after fonts
+    std::ignore = this->fonts->fontChanged.connect([this]() {
         this->windows->layoutChannelViews();
     });
+}
+
+Application::~Application() = default;
+
+void Application::fakeDtor()
+{
+    this->twitchPubSub.reset();
 }
 
 void Application::initialize(Settings &settings, Paths &paths)
@@ -100,13 +158,13 @@ void Application::initialize(Settings &settings, Paths &paths)
     isAppInitialized = true;
 
     // Show changelog
-    if (!getArgs().isFramelessEmbed &&
+    if (!this->args_.isFramelessEmbed &&
         getSettings()->currentVersion.getValue() != "" &&
         getSettings()->currentVersion.getValue() != CHATTERINO_VERSION)
     {
-        auto box = new QMessageBox(QMessageBox::Information, "Chatterino 2",
-                                   "Show changelog?",
-                                   QMessageBox::Yes | QMessageBox::No);
+        auto *box = new QMessageBox(QMessageBox::Information, "Chatterino 2",
+                                    "Show changelog?",
+                                    QMessageBox::Yes | QMessageBox::No);
         box->setAttribute(Qt::WA_DeleteOnClose);
         if (box->exec() == QMessageBox::Yes)
         {
@@ -115,7 +173,7 @@ void Application::initialize(Settings &settings, Paths &paths)
         }
     }
 
-    if (!getArgs().isFramelessEmbed)
+    if (!this->args_.isFramelessEmbed)
     {
         getSettings()->currentVersion.setValue(CHATTERINO_VERSION);
 
@@ -130,13 +188,15 @@ void Application::initialize(Settings &settings, Paths &paths)
         singleton->initialize(settings, paths);
     }
 
-    // add crash message
-    if (!getArgs().isFramelessEmbed && getArgs().crashRecovery)
+    // Show crash message.
+    // On Windows, the crash message was already shown.
+#ifndef Q_OS_WIN
+    if (!this->args_.isFramelessEmbed && this->args_.crashRecovery)
     {
-        if (auto selected =
+        if (auto *selected =
                 this->windows->getMainWindow().getNotebook().getSelectedPage())
         {
-            if (auto container = dynamic_cast<SplitContainer *>(selected))
+            if (auto *container = dynamic_cast<SplitContainer *>(selected))
             {
                 for (auto &&split : container->getSplits())
                 {
@@ -151,10 +211,11 @@ void Application::initialize(Settings &settings, Paths &paths)
             }
         }
     }
+#endif
 
     this->windows->updateWordTypeMask();
 
-    if (!getArgs().isFramelessEmbed)
+    if (!this->args_.isFramelessEmbed)
     {
         this->initNm(paths);
     }
@@ -170,7 +231,7 @@ int Application::run(QApplication &qtApp)
 
     this->twitch->connect();
 
-    if (!getArgs().isFramelessEmbed)
+    if (!this->args_.isFramelessEmbed)
     {
         this->windows->getMainWindow().show();
     }
@@ -180,16 +241,23 @@ int Application::run(QApplication &qtApp)
             Updates::instance().checkForUpdates();
         },
         false);
-    getSettings()->moderationActions.delayedItemsChanged.connect([this] {
-        this->windows->forceLayoutChannelViews();
-    });
 
-    getSettings()->highlightedMessages.delayedItemsChanged.connect([this] {
-        this->windows->forceLayoutChannelViews();
-    });
-    getSettings()->highlightedUsers.delayedItemsChanged.connect([this] {
-        this->windows->forceLayoutChannelViews();
-    });
+    // We can safely ignore the signal connections since Application will always live longer than
+    // everything else, including settings. right?
+    // NOTE: SETTINGS_LIFETIME
+    std::ignore =
+        getSettings()->moderationActions.delayedItemsChanged.connect([this] {
+            this->windows->forceLayoutChannelViews();
+        });
+
+    std::ignore =
+        getSettings()->highlightedMessages.delayedItemsChanged.connect([this] {
+            this->windows->forceLayoutChannelViews();
+        });
+    std::ignore =
+        getSettings()->highlightedUsers.delayedItemsChanged.connect([this] {
+            this->windows->forceLayoutChannelViews();
+        });
 
     getSettings()->removeSpacesBetweenEmotes.connect([this] {
         this->windows->forceLayoutChannelViews();
@@ -239,6 +307,31 @@ IUserDataController *Application::getUserData()
     return this->userData;
 }
 
+ISoundController *Application::getSound()
+{
+    return this->sound;
+}
+
+ITwitchLiveController *Application::getTwitchLiveController()
+{
+    return this->twitchLiveController;
+}
+
+ITwitchIrcServer *Application::getTwitch()
+{
+    return this->twitch;
+}
+
+PubSub *Application::getTwitchPubSub()
+{
+    return this->twitchPubSub.get();
+}
+
+Logging *Application::getChatLogger()
+{
+    return this->logging.get();
+}
+
 void Application::save()
 {
     for (auto &singleton : this->singletons_)
@@ -252,7 +345,7 @@ void Application::initNm(Paths &paths)
     (void)paths;
 
 #ifdef Q_OS_WIN
-#    if defined QT_NO_DEBUG || defined C_DEBUG_NM
+#    if defined QT_NO_DEBUG || defined CHATTERINO_DEBUG_NM
     registerNmHost(paths);
     this->nmServer.start();
 #    endif
@@ -261,7 +354,9 @@ void Application::initNm(Paths &paths)
 
 void Application::initPubSub()
 {
-    this->twitch->pubsub->signals_.moderation.chatCleared.connect(
+    // We can safely ignore these signal connections since the twitch object will always
+    // be destroyed before the Application
+    std::ignore = this->twitchPubSub->moderation.chatCleared.connect(
         [this](const auto &action) {
             auto chan = this->twitch->getChannelOrEmptyByID(action.roomID);
             if (chan->isEmpty())
@@ -270,7 +365,7 @@ void Application::initPubSub()
             }
 
             QString text =
-                QString("%1 cleared the chat").arg(action.source.login);
+                QString("%1 cleared the chat.").arg(action.source.login);
 
             auto msg = makeSystemMessage(text);
             postToThread([chan, msg] {
@@ -278,7 +373,7 @@ void Application::initPubSub()
             });
         });
 
-    this->twitch->pubsub->signals_.moderation.modeChanged.connect(
+    std::ignore = this->twitchPubSub->moderation.modeChanged.connect(
         [this](const auto &action) {
             auto chan = this->twitch->getChannelOrEmptyByID(action.roomID);
             if (chan->isEmpty())
@@ -287,7 +382,7 @@ void Application::initPubSub()
             }
 
             QString text =
-                QString("%1 turned %2 %3 mode")
+                QString("%1 turned %2 %3 mode.")
                     .arg(action.source.login)
                     .arg(action.state == ModeChangedAction::State::On ? "on"
                                                                       : "off")
@@ -304,7 +399,7 @@ void Application::initPubSub()
             });
         });
 
-    this->twitch->pubsub->signals_.moderation.moderationStateChanged.connect(
+    std::ignore = this->twitchPubSub->moderation.moderationStateChanged.connect(
         [this](const auto &action) {
             auto chan = this->twitch->getChannelOrEmptyByID(action.roomID);
             if (chan->isEmpty())
@@ -314,7 +409,7 @@ void Application::initPubSub()
 
             QString text;
 
-            text = QString("%1 %2 %3")
+            text = QString("%1 %2 %3.")
                        .arg(action.source.login,
                             (action.modded ? "modded" : "unmodded"),
                             action.target.login);
@@ -325,7 +420,7 @@ void Application::initPubSub()
             });
         });
 
-    this->twitch->pubsub->signals_.moderation.userBanned.connect(
+    std::ignore = this->twitchPubSub->moderation.userBanned.connect(
         [&](const auto &action) {
             auto chan = this->twitch->getChannelOrEmptyByID(action.roomID);
 
@@ -340,7 +435,7 @@ void Application::initPubSub()
                 chan->addOrReplaceTimeout(msg.release());
             });
         });
-    this->twitch->pubsub->signals_.moderation.messageDeleted.connect(
+    std::ignore = this->twitchPubSub->moderation.messageDeleted.connect(
         [&](const auto &action) {
             auto chan = this->twitch->getChannelOrEmptyByID(action.roomID);
 
@@ -364,7 +459,7 @@ void Application::initPubSub()
 
                 for (int i = snapshotLength - 1; i >= end; --i)
                 {
-                    auto &s = snapshot[i];
+                    const auto &s = snapshot[i];
                     if (!s->flags.has(MessageFlag::PubSub) &&
                         s->timeoutUser == msg->timeoutUser)
                     {
@@ -380,7 +475,7 @@ void Application::initPubSub()
             });
         });
 
-    this->twitch->pubsub->signals_.moderation.userUnbanned.connect(
+    std::ignore = this->twitchPubSub->moderation.userUnbanned.connect(
         [&](const auto &action) {
             auto chan = this->twitch->getChannelOrEmptyByID(action.roomID);
 
@@ -396,7 +491,96 @@ void Application::initPubSub()
             });
         });
 
-    this->twitch->pubsub->signals_.moderation.autoModMessageCaught.connect(
+    std::ignore =
+        this->twitchPubSub->moderation.suspiciousMessageReceived.connect(
+            [&](const auto &action) {
+                if (action.treatment ==
+                    PubSubLowTrustUsersMessage::Treatment::INVALID)
+                {
+                    qCWarning(chatterinoTwitch)
+                        << "Received suspicious message with unknown "
+                           "treatment:"
+                        << action.treatmentString;
+                    return;
+                }
+
+                // monitored chats are received over irc; in the future, we will use pubsub instead
+                if (action.treatment !=
+                    PubSubLowTrustUsersMessage::Treatment::Restricted)
+                {
+                    return;
+                }
+
+                if (getSettings()->streamerModeHideModActions &&
+                    isInStreamerMode())
+                {
+                    return;
+                }
+
+                auto chan =
+                    this->twitch->getChannelOrEmptyByID(action.channelID);
+
+                if (chan->isEmpty())
+                {
+                    return;
+                }
+
+                auto twitchChannel =
+                    std::dynamic_pointer_cast<TwitchChannel>(chan);
+                if (!twitchChannel)
+                {
+                    return;
+                }
+
+                postToThread([twitchChannel, action] {
+                    const auto p =
+                        TwitchMessageBuilder::makeLowTrustUserMessage(
+                            action, twitchChannel->getName(),
+                            twitchChannel.get());
+                    twitchChannel->addMessage(p.first);
+                    twitchChannel->addMessage(p.second);
+                });
+            });
+
+    std::ignore =
+        this->twitchPubSub->moderation.suspiciousTreatmentUpdated.connect(
+            [&](const auto &action) {
+                if (action.treatment ==
+                    PubSubLowTrustUsersMessage::Treatment::INVALID)
+                {
+                    qCWarning(chatterinoTwitch)
+                        << "Received suspicious user update with unknown "
+                           "treatment:"
+                        << action.treatmentString;
+                    return;
+                }
+
+                if (action.updatedByUserLogin.isEmpty())
+                {
+                    return;
+                }
+
+                if (getSettings()->streamerModeHideModActions &&
+                    isInStreamerMode())
+                {
+                    return;
+                }
+
+                auto chan =
+                    this->twitch->getChannelOrEmptyByID(action.channelID);
+                if (chan->isEmpty())
+                {
+                    return;
+                }
+
+                postToThread([chan, action] {
+                    auto msg =
+                        TwitchMessageBuilder::makeLowTrustUpdateMessage(action);
+                    chan->addMessage(msg);
+                });
+            });
+
+    std::ignore = this->twitchPubSub->moderation.autoModMessageCaught.connect(
         [&](const auto &msg, const QString &channelID) {
             auto chan = this->twitch->getChannelOrEmptyByID(channelID);
             if (chan->isEmpty())
@@ -471,9 +655,16 @@ void Application::initPubSub()
                             ActionUser{msg.senderUserID, msg.senderUserLogin,
                                        senderDisplayName, senderColor};
                         postToThread([chan, action] {
-                            const auto p = makeAutomodMessage(action);
+                            const auto p =
+                                TwitchMessageBuilder::makeAutomodMessage(
+                                    action, chan->getName());
                             chan->addMessage(p.first);
                             chan->addMessage(p.second);
+
+                            getApp()->twitch->automodChannel->addMessage(
+                                p.first);
+                            getApp()->twitch->automodChannel->addMessage(
+                                p.second);
                         });
                     }
                     // "ALLOWED" and "DENIED" statuses remain unimplemented
@@ -488,7 +679,7 @@ void Application::initPubSub()
             }
         });
 
-    this->twitch->pubsub->signals_.moderation.autoModMessageBlocked.connect(
+    std::ignore = this->twitchPubSub->moderation.autoModMessageBlocked.connect(
         [&](const auto &action) {
             auto chan = this->twitch->getChannelOrEmptyByID(action.roomID);
             if (chan->isEmpty())
@@ -497,14 +688,21 @@ void Application::initPubSub()
             }
 
             postToThread([chan, action] {
-                const auto p = makeAutomodMessage(action);
+                const auto p = TwitchMessageBuilder::makeAutomodMessage(
+                    action, chan->getName());
                 chan->addMessage(p.first);
                 chan->addMessage(p.second);
             });
         });
 
-    this->twitch->pubsub->signals_.moderation.automodUserMessage.connect(
+    std::ignore = this->twitchPubSub->moderation.automodUserMessage.connect(
         [&](const auto &action) {
+            // This condition has been set up to execute isInStreamerMode() as the last thing
+            // as it could end up being expensive.
+            if (getSettings()->streamerModeHideModActions && isInStreamerMode())
+            {
+                return;
+            }
             auto chan = this->twitch->getChannelOrEmptyByID(action.roomID);
 
             if (chan->isEmpty())
@@ -520,7 +718,7 @@ void Application::initPubSub()
             chan->deleteMessage(msg->id);
         });
 
-    this->twitch->pubsub->signals_.moderation.automodInfoMessage.connect(
+    std::ignore = this->twitchPubSub->moderation.automodInfoMessage.connect(
         [&](const auto &action) {
             auto chan = this->twitch->getChannelOrEmptyByID(action.roomID);
 
@@ -530,13 +728,14 @@ void Application::initPubSub()
             }
 
             postToThread([chan, action] {
-                const auto p = makeAutomodInfoMessage(action);
+                const auto p =
+                    TwitchMessageBuilder::makeAutomodInfoMessage(action);
                 chan->addMessage(p);
             });
         });
 
-    this->twitch->pubsub->signals_.pointReward.redeemed.connect(
-        [&](auto &data) {
+    std::ignore =
+        this->twitchPubSub->pointReward.redeemed.connect([&](auto &data) {
             QString channelId = data.value("channel_id").toString();
             if (channelId.isEmpty())
             {
@@ -550,35 +749,26 @@ void Application::initPubSub()
             auto reward = ChannelPointReward(data);
 
             postToThread([chan, reward] {
-                if (auto channel = dynamic_cast<TwitchChannel *>(chan.get()))
+                if (auto *channel = dynamic_cast<TwitchChannel *>(chan.get()))
                 {
                     channel->addChannelPointReward(reward);
                 }
             });
         });
 
-    this->twitch->pubsub->start();
-
-    auto RequestModerationActions = [this]() {
-        this->twitch->pubsub->setAccount(
-            getApp()->accounts->twitch.getCurrent());
-        // TODO(pajlada): Unlisten to all authed topics instead of only
-        // moderation topics this->twitch->pubsub->UnlistenAllAuthedTopics();
-
-        this->twitch->pubsub->listenToWhispers();
-    };
+    this->twitchPubSub->start();
+    this->twitchPubSub->setAccount(this->accounts->twitch.getCurrent());
 
     this->accounts->twitch.currentUserChanged.connect(
         [this] {
-            this->twitch->pubsub->unlistenAllModerationActions();
-            this->twitch->pubsub->unlistenAutomod();
-            this->twitch->pubsub->unlistenWhispers();
+            this->twitchPubSub->unlistenChannelModerationActions();
+            this->twitchPubSub->unlistenAutomod();
+            this->twitchPubSub->unlistenLowTrustUsers();
+            this->twitchPubSub->unlistenChannelPointRewards();
+
+            this->twitchPubSub->setAccount(this->accounts->twitch.getCurrent());
         },
         boost::signals2::at_front);
-
-    this->accounts->twitch.currentUserChanged.connect(RequestModerationActions);
-
-    RequestModerationActions();
 }
 
 void Application::initBttvLiveUpdates()
@@ -590,7 +780,9 @@ void Application::initBttvLiveUpdates()
         return;
     }
 
-    this->twitch->bttvLiveUpdates->signals_.emoteAdded.connect(
+    // We can safely ignore these signal connections since the twitch object will always
+    // be destroyed before the Application
+    std::ignore = this->twitch->bttvLiveUpdates->signals_.emoteAdded.connect(
         [&](const auto &data) {
             auto chan = this->twitch->getChannelOrEmptyByID(data.channelID);
 
@@ -601,7 +793,7 @@ void Application::initBttvLiveUpdates()
                 }
             });
         });
-    this->twitch->bttvLiveUpdates->signals_.emoteUpdated.connect(
+    std::ignore = this->twitch->bttvLiveUpdates->signals_.emoteUpdated.connect(
         [&](const auto &data) {
             auto chan = this->twitch->getChannelOrEmptyByID(data.channelID);
 
@@ -612,7 +804,7 @@ void Application::initBttvLiveUpdates()
                 }
             });
         });
-    this->twitch->bttvLiveUpdates->signals_.emoteRemoved.connect(
+    std::ignore = this->twitch->bttvLiveUpdates->signals_.emoteRemoved.connect(
         [&](const auto &data) {
             auto chan = this->twitch->getChannelOrEmptyByID(data.channelID);
 
@@ -635,7 +827,9 @@ void Application::initSeventvEventAPI()
         return;
     }
 
-    this->twitch->seventvEventAPI->signals_.emoteAdded.connect(
+    // We can safely ignore these signal connections since the twitch object will always
+    // be destroyed before the Application
+    std::ignore = this->twitch->seventvEventAPI->signals_.emoteAdded.connect(
         [&](const auto &data) {
             postToThread([this, data] {
                 this->twitch->forEachSeventvEmoteSet(
@@ -644,7 +838,7 @@ void Application::initSeventvEventAPI()
                     });
             });
         });
-    this->twitch->seventvEventAPI->signals_.emoteUpdated.connect(
+    std::ignore = this->twitch->seventvEventAPI->signals_.emoteUpdated.connect(
         [&](const auto &data) {
             postToThread([this, data] {
                 this->twitch->forEachSeventvEmoteSet(
@@ -653,7 +847,7 @@ void Application::initSeventvEventAPI()
                     });
             });
         });
-    this->twitch->seventvEventAPI->signals_.emoteRemoved.connect(
+    std::ignore = this->twitch->seventvEventAPI->signals_.emoteRemoved.connect(
         [&](const auto &data) {
             postToThread([this, data] {
                 this->twitch->forEachSeventvEmoteSet(
@@ -662,7 +856,7 @@ void Application::initSeventvEventAPI()
                     });
             });
         });
-    this->twitch->seventvEventAPI->signals_.userUpdated.connect(
+    std::ignore = this->twitch->seventvEventAPI->signals_.userUpdated.connect(
         [&](const auto &data) {
             this->twitch->forEachSeventvUser(data.userID,
                                              [data](TwitchChannel &chan) {

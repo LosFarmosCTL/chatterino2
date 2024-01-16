@@ -3,8 +3,9 @@
 #include "Application.hpp"
 #include "common/Args.hpp"
 #include "common/Modes.hpp"
-#include "common/NetworkManager.hpp"
+#include "common/network/NetworkManager.hpp"
 #include "common/QLogging.hpp"
+#include "singletons/CrashHandler.hpp"
 #include "singletons/Paths.hpp"
 #include "singletons/Resources.hpp"
 #include "singletons/Settings.hpp"
@@ -20,6 +21,7 @@
 #include <QtConcurrent>
 
 #include <csignal>
+#include <tuple>
 
 #ifdef USEWINSDK
 #    include "util/WindowsHelper.hpp"
@@ -44,27 +46,29 @@ namespace {
         dark.setColor(QPalette::Window, QColor(22, 22, 22));
         dark.setColor(QPalette::WindowText, Qt::white);
         dark.setColor(QPalette::Text, Qt::white);
-        dark.setColor(QPalette::Disabled, QPalette::WindowText,
-                      QColor(127, 127, 127));
         dark.setColor(QPalette::Base, QColor("#333"));
         dark.setColor(QPalette::AlternateBase, QColor("#444"));
         dark.setColor(QPalette::ToolTipBase, Qt::white);
         dark.setColor(QPalette::ToolTipText, Qt::white);
-        dark.setColor(QPalette::Disabled, QPalette::Text,
-                      QColor(127, 127, 127));
         dark.setColor(QPalette::Dark, QColor(35, 35, 35));
         dark.setColor(QPalette::Shadow, QColor(20, 20, 20));
         dark.setColor(QPalette::Button, QColor(70, 70, 70));
         dark.setColor(QPalette::ButtonText, Qt::white);
-        dark.setColor(QPalette::Disabled, QPalette::ButtonText,
-                      QColor(127, 127, 127));
         dark.setColor(QPalette::BrightText, Qt::red);
         dark.setColor(QPalette::Link, QColor(42, 130, 218));
         dark.setColor(QPalette::Highlight, QColor(42, 130, 218));
+        dark.setColor(QPalette::HighlightedText, Qt::white);
+        dark.setColor(QPalette::PlaceholderText, QColor(127, 127, 127));
+
         dark.setColor(QPalette::Disabled, QPalette::Highlight,
                       QColor(80, 80, 80));
-        dark.setColor(QPalette::HighlightedText, Qt::white);
         dark.setColor(QPalette::Disabled, QPalette::HighlightedText,
+                      QColor(127, 127, 127));
+        dark.setColor(QPalette::Disabled, QPalette::ButtonText,
+                      QColor(127, 127, 127));
+        dark.setColor(QPalette::Disabled, QPalette::Text,
+                      QColor(127, 127, 127));
+        dark.setColor(QPalette::Disabled, QPalette::WindowText,
                       QColor(127, 127, 127));
 
         qApp->setPalette(dark);
@@ -74,34 +78,32 @@ namespace {
     {
         // set up the QApplication flags
         QApplication::setAttribute(Qt::AA_Use96Dpi, true);
-#ifdef Q_OS_WIN32
+#if defined(Q_OS_WIN32) && QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
         QApplication::setAttribute(Qt::AA_DisableHighDpiScaling, true);
 #endif
 
         QApplication::setStyle(QStyleFactory::create("Fusion"));
 
+#ifndef Q_OS_MAC
         QApplication::setWindowIcon(QIcon(":/icon.ico"));
+#endif
+
+#ifdef Q_OS_MAC
+        // On the Mac/Cocoa platform this attribute is enabled by default
+        // We override it to ensure shortcuts show in context menus on that platform
+        QApplication::setAttribute(Qt::AA_DontShowShortcutsInContextMenus,
+                                   false);
+#endif
 
         installCustomPalette();
     }
 
-    void showLastCrashDialog()
+    void showLastCrashDialog(const Args &args)
     {
-        //#ifndef C_DISABLE_CRASH_DIALOG
-        //        LastRunCrashDialog dialog;
-
-        //        switch (dialog.exec())
-        //        {
-        //            case QDialog::Accepted:
-        //            {
-        //            };
-        //            break;
-        //            default:
-        //            {
-        //                _exit(0);
-        //            }
-        //        }
-        //#endif
+        auto *dialog = new LastRunCrashDialog(args);
+        // Use exec() over open() to block the app from being loaded
+        // and to be able to set the safe mode.
+        dialog->exec();
     }
 
     void createRunningFile(const QString &path)
@@ -119,14 +121,13 @@ namespace {
     }
 
     std::chrono::steady_clock::time_point signalsInitTime;
-    bool restartOnSignal = false;
 
     [[noreturn]] void handleSignal(int signum)
     {
         using namespace std::chrono_literals;
 
-        if (restartOnSignal &&
-            std::chrono::steady_clock::now() - signalsInitTime > 30s)
+        if (std::chrono::steady_clock::now() - signalsInitTime > 30s &&
+            getIApp()->getCrashHandler()->shouldRecover())
         {
             QProcess proc;
 
@@ -173,17 +174,20 @@ namespace {
     // improved in the future.
     void clearCache(const QDir &dir)
     {
-        int deletedCount = 0;
-        for (auto &&info : dir.entryInfoList(QDir::Files))
+        size_t deletedCount = 0;
+        for (const auto &info : dir.entryInfoList(QDir::Files))
         {
             if (info.lastModified().addDays(14) < QDateTime::currentDateTime())
             {
                 bool res = QFile(info.absoluteFilePath()).remove();
                 if (res)
+                {
                     ++deletedCount;
+                }
             }
         }
-        qCDebug(chatterinoCache) << "Deleted" << deletedCount << "files";
+        qCDebug(chatterinoCache)
+            << "Deleted" << deletedCount << "files in" << dir.path();
     }
 
     // We delete all but the five most recent crashdumps. This strategy may be
@@ -219,15 +223,18 @@ namespace {
     }
 }  // namespace
 
-void runGui(QApplication &a, Paths &paths, Settings &settings)
+void runGui(QApplication &a, Paths &paths, Settings &settings, const Args &args)
 {
     initQt();
     initResources();
     initSignalHandler();
 
-    settings.restartOnCrash.connect([](const bool &value) {
-        restartOnSignal = value;
-    });
+#ifdef Q_OS_WIN
+    if (args.crashRecovery)
+    {
+        showLastCrashDialog(args);
+    }
+#endif
 
     auto thread = std::thread([dir = paths.miscDirectory] {
         {
@@ -248,12 +255,15 @@ void runGui(QApplication &a, Paths &paths, Settings &settings)
 
     // Clear the cache 1 minute after start.
     QTimer::singleShot(60 * 1000, [cachePath = paths.cacheDirectory(),
-                                   crashDirectory = paths.crashdumpDirectory] {
-        QtConcurrent::run([cachePath]() {
+                                   crashDirectory = paths.crashdumpDirectory,
+                                   avatarPath = paths.twitchProfileAvatars] {
+        std::ignore = QtConcurrent::run([cachePath] {
             clearCache(cachePath);
         });
-
-        QtConcurrent::run([crashDirectory]() {
+        std::ignore = QtConcurrent::run([avatarPath] {
+            clearCache(avatarPath);
+        });
+        std::ignore = QtConcurrent::run([crashDirectory] {
             clearCrashes(crashDirectory);
         });
     });
@@ -261,31 +271,12 @@ void runGui(QApplication &a, Paths &paths, Settings &settings)
     chatterino::NetworkManager::init();
     chatterino::Updates::instance().checkForUpdates();
 
-#ifdef C_USE_BREAKPAD
-    QBreakpadInstance.setDumpPath(getPaths()->settingsFolderPath + "/Crashes");
-#endif
-
-    // Running file
-    auto runningPath =
-        paths.miscDirectory + "/running_" + paths.applicationFilePathHash;
-
-    if (QFile::exists(runningPath))
-    {
-        showLastCrashDialog();
-    }
-    else
-    {
-        createRunningFile(runningPath);
-    }
-
-    Application app(settings, paths);
+    Application app(settings, paths, args);
     app.initialize(settings, paths);
     app.run(a);
     app.save();
 
-    removeRunningFile(runningPath);
-
-    if (!getArgs().dontSaveSettings)
+    if (!args.dontSaveSettings)
     {
         pajlada::Settings::SettingManager::gSave();
     }
@@ -296,6 +287,8 @@ void runGui(QApplication &a, Paths &paths, Settings &settings)
     // flushing windows clipboard to keep copied messages
     flushClipboard();
 #endif
+
+    app.fakeDtor();
 
     _exit(0);
 }

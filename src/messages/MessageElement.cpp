@@ -12,6 +12,7 @@
 #include "singletons/Settings.hpp"
 #include "singletons/Theme.hpp"
 #include "util/DebugCount.hpp"
+#include "util/Variant.hpp"
 
 namespace chatterino {
 
@@ -110,6 +111,11 @@ MessageElementFlags MessageElement::getFlags() const
     return this->flags_;
 }
 
+void MessageElement::addFlags(MessageElementFlags flags)
+{
+    this->flags_.set(flags);
+}
+
 MessageElement *MessageElement::updateLink()
 {
     this->linkChanged.invoke();
@@ -206,7 +212,9 @@ void EmoteElement::addToContainer(MessageLayoutContainer &container,
             auto image =
                 this->emote_->images.getImageOrLoaded(container.getScale());
             if (image->isEmpty())
+            {
                 return;
+            }
 
             auto emoteScale = getSettings()->emoteScale.getValue();
 
@@ -234,9 +242,9 @@ MessageLayoutElement *EmoteElement::makeImageLayoutElement(
     return new ImageLayoutElement(*this, image, size);
 }
 
-LayeredEmoteElement::LayeredEmoteElement(std::vector<EmotePtr> &&emotes,
-                                         MessageElementFlags flags,
-                                         const MessageColor &textElementColor)
+LayeredEmoteElement::LayeredEmoteElement(
+    std::vector<LayeredEmoteElement::Emote> &&emotes, MessageElementFlags flags,
+    const MessageColor &textElementColor)
     : MessageElement(flags)
     , emotes_(std::move(emotes))
     , textElementColor_(textElementColor)
@@ -244,7 +252,7 @@ LayeredEmoteElement::LayeredEmoteElement(std::vector<EmotePtr> &&emotes,
     this->updateTooltips();
 }
 
-void LayeredEmoteElement::addEmoteLayer(const EmotePtr &emote)
+void LayeredEmoteElement::addEmoteLayer(const LayeredEmoteElement::Emote &emote)
 {
     this->emotes_.push_back(emote);
     this->updateTooltips();
@@ -295,9 +303,9 @@ std::vector<ImagePtr> LayeredEmoteElement::getLoadedImages(float scale)
     std::vector<ImagePtr> res;
     res.reserve(this->emotes_.size());
 
-    for (auto emote : this->emotes_)
+    for (const auto &emote : this->emotes_)
     {
-        auto image = emote->images.getImageOrLoaded(scale);
+        auto image = emote.ptr->images.getImageOrLoaded(scale);
         if (image->isEmpty())
         {
             continue;
@@ -327,9 +335,9 @@ void LayeredEmoteElement::updateTooltips()
     std::vector<QString> result;
     result.reserve(this->emotes_.size());
 
-    for (auto &emote : this->emotes_)
+    for (const auto &emote : this->emotes_)
     {
-        result.push_back(emote->tooltip.string);
+        result.push_back(emote.ptr->tooltip.string);
     }
 
     this->emoteTooltips_ = std::move(result);
@@ -349,8 +357,8 @@ QString LayeredEmoteElement::getCleanCopyString() const
         {
             result += " ";
         }
-        result +=
-            TwitchEmotes::cleanUpEmoteCode(this->emotes_[i]->getCopyString());
+        result += TwitchEmotes::cleanUpEmoteCode(
+            this->emotes_[i].ptr->getCopyString());
     }
     return result;
 }
@@ -364,23 +372,25 @@ QString LayeredEmoteElement::getCopyString() const
         {
             result += " ";
         }
-        result += this->emotes_[i]->getCopyString();
+        result += this->emotes_[i].ptr->getCopyString();
     }
     return result;
 }
 
-const std::vector<EmotePtr> &LayeredEmoteElement::getEmotes() const
+const std::vector<LayeredEmoteElement::Emote> &LayeredEmoteElement::getEmotes()
+    const
 {
     return this->emotes_;
 }
 
-std::vector<EmotePtr> LayeredEmoteElement::getUniqueEmotes() const
+std::vector<LayeredEmoteElement::Emote> LayeredEmoteElement::getUniqueEmotes()
+    const
 {
     // Functor for std::copy_if that keeps track of seen elements
     struct NotDuplicate {
-        bool operator()(const EmotePtr &element)
+        bool operator()(const Emote &element)
         {
-            return seen.insert(element).second;
+            return seen.insert(element.ptr).second;
         }
 
     private:
@@ -389,7 +399,7 @@ std::vector<EmotePtr> LayeredEmoteElement::getUniqueEmotes() const
 
     // Get unique emotes while maintaining relative layering order
     NotDuplicate dup;
-    std::vector<EmotePtr> unique;
+    std::vector<Emote> unique;
     std::copy_if(this->emotes_.begin(), this->emotes_.end(),
                  std::back_insert_iterator(unique), dup);
 
@@ -412,7 +422,9 @@ void BadgeElement::addToContainer(MessageLayoutContainer &container,
         auto image =
             this->emote_->images.getImageOrLoaded(container.getScale());
         if (image->isEmpty())
+        {
             return;
+        }
 
         auto size = QSize(int(container.getScale() * image->width()),
                           int(container.getScale() * image->height()));
@@ -429,7 +441,7 @@ EmotePtr BadgeElement::getEmote() const
 MessageLayoutElement *BadgeElement::makeImageLayoutElement(
     const ImagePtr &image, const QSize &size)
 {
-    auto element =
+    auto *element =
         (new ImageLayoutElement(*this, image, size))->setLink(this->getLink());
 
     return element;
@@ -447,9 +459,9 @@ MessageLayoutElement *ModBadgeElement::makeImageLayoutElement(
 {
     static const QColor modBadgeBackgroundColor("#34AE0A");
 
-    auto element = (new ImageWithBackgroundLayoutElement(
-                        *this, image, size, modBadgeBackgroundColor))
-                       ->setLink(this->getLink());
+    auto *element = (new ImageWithBackgroundLayoutElement(
+                         *this, image, size, modBadgeBackgroundColor))
+                        ->setLink(this->getLink());
 
     return element;
 }
@@ -464,7 +476,7 @@ VipBadgeElement::VipBadgeElement(const EmotePtr &data,
 MessageLayoutElement *VipBadgeElement::makeImageLayoutElement(
     const ImagePtr &image, const QSize &size)
 {
-    auto element =
+    auto *element =
         (new ImageLayoutElement(*this, image, size))->setLink(this->getLink());
 
     return element;
@@ -481,7 +493,7 @@ FfzBadgeElement::FfzBadgeElement(const EmotePtr &data,
 MessageLayoutElement *FfzBadgeElement::makeImageLayoutElement(
     const ImagePtr &image, const QSize &size)
 {
-    auto element =
+    auto *element =
         (new ImageWithBackgroundLayoutElement(*this, image, size, this->color))
             ->setLink(this->getLink());
 
@@ -505,7 +517,7 @@ TextElement::TextElement(const QString &text, MessageElementFlags flags,
 void TextElement::addToContainer(MessageLayoutContainer &container,
                                  MessageElementFlags flags)
 {
-    auto app = getApp();
+    auto *app = getApp();
 
     if (flags.hasAny(this->getFlags()))
     {
@@ -519,10 +531,10 @@ void TextElement::addToContainer(MessageLayoutContainer &container,
                 auto color = this->color_.getColor(*app->themes);
                 app->themes->normalizeColor(color);
 
-                auto e = (new TextLayoutElement(
-                              *this, text, QSize(width, metrics.height()),
-                              color, this->style_, container.getScale()))
-                             ->setLink(this->getLink());
+                auto *e = (new TextLayoutElement(
+                               *this, text, QSize(width, metrics.height()),
+                               color, this->style_, container.getScale()))
+                              ->setLink(this->getLink());
                 e->setTrailingSpace(hasTrailingSpace);
                 e->setText(text);
 
@@ -588,14 +600,18 @@ void TextElement::addToContainer(MessageLayoutContainer &container,
                     width = charWidth;
 
                     if (isSurrogate)
+                    {
                         i++;
+                    }
                     continue;
                 }
 
                 width += charWidth;
 
                 if (isSurrogate)
+                {
                     i++;
+                }
             }
             //add the final piece of wrapped text
             container.addElementNoLineBreak(getTextLayoutElement(
@@ -621,7 +637,7 @@ SingleLineTextElement::SingleLineTextElement(const QString &text,
 void SingleLineTextElement::addToContainer(MessageLayoutContainer &container,
                                            MessageElementFlags flags)
 {
-    auto app = getApp();
+    auto *app = getApp();
 
     if (flags.hasAny(this->getFlags()))
     {
@@ -633,10 +649,10 @@ void SingleLineTextElement::addToContainer(MessageLayoutContainer &container,
             auto color = this->color_.getColor(*app->themes);
             app->themes->normalizeColor(color);
 
-            auto e = (new TextLayoutElement(
-                          *this, text, QSize(width, metrics.height()), color,
-                          this->style_, container.getScale()))
-                         ->setLink(this->getLink());
+            auto *e = (new TextLayoutElement(
+                           *this, text, QSize(width, metrics.height()), color,
+                           this->style_, container.getScale()))
+                          ->setLink(this->getLink());
             e->setTrailingSpace(hasTrailingSpace);
             e->setText(text);
 
@@ -656,83 +672,66 @@ void SingleLineTextElement::addToContainer(MessageLayoutContainer &container,
         QString currentText;
 
         container.first = FirstWord::Neutral;
+
+        bool firstIteration = true;
         for (Word &word : this->words_)
         {
-            auto parsedWords = app->emotes->emojis.parse(word.text);
-            if (parsedWords.size() == 0)
+            if (firstIteration)
             {
-                continue;  // sanity check
+                firstIteration = false;
+            }
+            else
+            {
+                currentText += ' ';
             }
 
-            auto &parsedWord = parsedWords[0];
-            if (parsedWord.type() == typeid(QString))
+            for (const auto &parsedWord : app->emotes->emojis.parse(word.text))
             {
-                int nextWidth =
-                    metrics.horizontalAdvance(currentText + word.text);
-
-                // see if the text fits in the current line
-                if (container.fitsInLine(nextWidth))
+                if (parsedWord.type() == typeid(QString))
                 {
-                    currentText += (word.text + " ");
-                }
-                else
-                {
-                    // word overflows, try minimum truncation
-                    bool cutSuccess = false;
-                    for (size_t cut = 1; cut < word.text.length(); ++cut)
+                    currentText += boost::get<QString>(parsedWord);
+                    QString prev =
+                        currentText;  // only increments the ref-count
+                    currentText =
+                        metrics.elidedText(currentText, Qt::ElideRight,
+                                           container.remainingWidth());
+                    if (currentText != prev)
                     {
-                        // Cut off n characters and append the ellipsis.
-                        // Try removing characters one by one until the word fits.
-                        QString truncatedWord =
-                            word.text.chopped(cut) + ellipsis;
-                        int newSize = metrics.horizontalAdvance(currentText +
-                                                                truncatedWord);
-                        if (container.fitsInLine(newSize))
-                        {
-                            currentText += (truncatedWord);
-
-                            cutSuccess = true;
-                            break;
-                        }
-                    }
-
-                    if (!cutSuccess)
-                    {
-                        // We weren't able to show any part of the current word, so
-                        // just append the ellipsis.
-                        currentText += ellipsis;
-                    }
-
-                    break;
-                }
-            }
-            else if (parsedWord.type() == typeid(EmotePtr))
-            {
-                auto emote = boost::get<EmotePtr>(parsedWord);
-                auto image =
-                    emote->images.getImageOrLoaded(container.getScale());
-                if (!image->isEmpty())
-                {
-                    auto emoteScale = getSettings()->emoteScale.getValue();
-
-                    int currentWidth = metrics.horizontalAdvance(currentText);
-                    auto emoteSize = QSize(image->width(), image->height()) *
-                                     (emoteScale * container.getScale());
-
-                    if (!container.fitsInLine(currentWidth + emoteSize.width()))
-                    {
-                        currentText += ellipsis;
                         break;
                     }
+                }
+                else if (parsedWord.type() == typeid(EmotePtr))
+                {
+                    auto emote = boost::get<EmotePtr>(parsedWord);
+                    auto image =
+                        emote->images.getImageOrLoaded(container.getScale());
+                    if (!image->isEmpty())
+                    {
+                        auto emoteScale = getSettings()->emoteScale.getValue();
 
-                    // Add currently pending text to container, then add the emote after.
-                    container.addElementNoLineBreak(
-                        getTextLayoutElement(currentText, currentWidth, false));
-                    currentText.clear();
+                        int currentWidth =
+                            metrics.horizontalAdvance(currentText);
+                        auto emoteSize =
+                            QSize(image->width(), image->height()) *
+                            (emoteScale * container.getScale());
 
-                    container.addElementNoLineBreak(
-                        (new ImageLayoutElement(*this, image, emoteSize))
-                            ->setLink(this->getLink()));
+                        if (!container.fitsInLine(currentWidth +
+                                                  emoteSize.width()))
+                        {
+                            currentText += ellipsis;
+                            break;
+                        }
+
+                        // Add currently pending text to container, then add the emote after.
+                        container.addElementNoLineBreak(getTextLayoutElement(
+                            currentText, currentWidth, false));
+                        currentText.clear();
+
+                        container.addElementNoLineBreak(
+                            (new ImageLayoutElement(*this, image, emoteSize))
+                                ->setLink(this->getLink())
+                                ->setTrailingSpace(false));
+                    }
                 }
             }
         }
@@ -740,9 +739,6 @@ void SingleLineTextElement::addToContainer(MessageLayoutContainer &container,
         // Add the last of the pending message text to the container.
         if (!currentText.isEmpty())
         {
-            // Remove trailing space.
-            currentText = currentText.trimmed();
-
             int width = metrics.horizontalAdvance(currentText);
             container.addElementNoLineBreak(
                 getTextLayoutElement(currentText, width, false));
@@ -799,13 +795,13 @@ void TwitchModerationElement::addToContainer(MessageLayoutContainer &container,
     {
         QSize size(int(container.getScale() * 16),
                    int(container.getScale() * 16));
-        auto actions = getCSettings().moderationActions.readOnly();
+        auto actions = getSettings()->moderationActions.readOnly();
         for (const auto &action : *actions)
         {
             if (auto image = action.getImage())
             {
                 container.addElement(
-                    (new ImageLayoutElement(*this, image.get(), size))
+                    (new ImageLayoutElement(*this, *image, size))
                         ->setLink(Link(Link::UserAction, action.getAction())));
             }
             else
@@ -849,7 +845,9 @@ void ScalingImageElement::addToContainer(MessageLayoutContainer &container,
         const auto &image =
             this->images_.getImageOrLoaded(container.getScale());
         if (image->isEmpty())
+        {
             return;
+        }
 
         auto size = QSize(image->width() * container.getScale(),
                           image->height() * container.getScale());

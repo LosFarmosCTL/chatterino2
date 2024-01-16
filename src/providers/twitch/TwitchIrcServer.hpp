@@ -18,24 +18,36 @@ namespace chatterino {
 
 class Settings;
 class Paths;
-class PubSub;
 class TwitchChannel;
 class BttvLiveUpdates;
 class SeventvEventAPI;
 
-class TwitchIrcServer final : public AbstractIrcServer, public Singleton
+class ITwitchIrcServer
+{
+public:
+    virtual ~ITwitchIrcServer() = default;
+
+    virtual const BttvEmotes &getBttvEmotes() const = 0;
+    virtual const FfzEmotes &getFfzEmotes() const = 0;
+    virtual const SeventvEmotes &getSeventvEmotes() const = 0;
+    virtual const IndirectChannel &getWatchingChannel() const = 0;
+
+    // Update this interface with TwitchIrcServer methods as needed
+};
+
+class TwitchIrcServer final : public AbstractIrcServer,
+                              public Singleton,
+                              public ITwitchIrcServer
 {
 public:
     TwitchIrcServer();
-    virtual ~TwitchIrcServer() override = default;
+    ~TwitchIrcServer() override = default;
 
-    virtual void initialize(Settings &settings, Paths &paths) override;
+    void initialize(Settings &settings, Paths &paths) override;
 
     void forEachChannelAndSpecialChannels(std::function<void(ChannelPtr)> func);
 
     std::shared_ptr<Channel> getChannelOrEmptyByID(const QString &channelID);
-
-    void bulkRefreshLiveStatus();
 
     void reloadBTTVGlobalEmotes();
     void reloadAllBTTVChannelEmotes();
@@ -64,34 +76,31 @@ public:
     const ChannelPtr whispersChannel;
     const ChannelPtr mentionsChannel;
     const ChannelPtr liveChannel;
+    const ChannelPtr automodChannel;
     IndirectChannel watchingChannel;
 
-    PubSub *pubsub;
     std::unique_ptr<BttvLiveUpdates> bttvLiveUpdates;
     std::unique_ptr<SeventvEventAPI> seventvEventAPI;
 
-    const BttvEmotes &getBttvEmotes() const;
-    const FfzEmotes &getFfzEmotes() const;
-    const SeventvEmotes &getSeventvEmotes() const;
+    const BttvEmotes &getBttvEmotes() const override;
+    const FfzEmotes &getFfzEmotes() const override;
+    const SeventvEmotes &getSeventvEmotes() const override;
+    const IndirectChannel &getWatchingChannel() const override;
 
 protected:
-    virtual void initializeConnection(IrcConnection *connection,
-                                      ConnectionType type) override;
-    virtual std::shared_ptr<Channel> createChannel(
-        const QString &channelName) override;
+    void initializeConnection(IrcConnection *connection,
+                              ConnectionType type) override;
+    std::shared_ptr<Channel> createChannel(const QString &channelName) override;
 
-    virtual void privateMessageReceived(
-        Communi::IrcPrivateMessage *message) override;
-    virtual void readConnectionMessageReceived(
-        Communi::IrcMessage *message) override;
-    virtual void writeConnectionMessageReceived(
-        Communi::IrcMessage *message) override;
+    void privateMessageReceived(Communi::IrcPrivateMessage *message) override;
+    void readConnectionMessageReceived(Communi::IrcMessage *message) override;
+    void writeConnectionMessageReceived(Communi::IrcMessage *message) override;
 
-    virtual std::shared_ptr<Channel> getCustomChannel(
+    std::shared_ptr<Channel> getCustomChannel(
         const QString &channelname) override;
 
-    virtual QString cleanChannelName(const QString &dirtyChannelName) override;
-    virtual bool hasSeparateWriteConnection() const override;
+    QString cleanChannelName(const QString &dirtyChannelName) override;
+    bool hasSeparateWriteConnection() const override;
 
 private:
     void onMessageSendRequested(TwitchChannel *channel, const QString &message,
@@ -115,7 +124,6 @@ private:
     BttvEmotes bttv;
     FfzEmotes ffz;
     SeventvEmotes seventv_;
-    QTimer bulkLiveStatusTimer_;
 
     pajlada::Signals::SignalHolder signalHolder_;
 };

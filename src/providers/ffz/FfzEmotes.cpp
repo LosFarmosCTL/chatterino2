@@ -1,8 +1,7 @@
 #include "providers/ffz/FfzEmotes.hpp"
 
-#include "common/NetworkRequest.hpp"
-#include "common/NetworkResult.hpp"
-#include "common/Outcome.hpp"
+#include "common/network/NetworkRequest.hpp"
+#include "common/network/NetworkResult.hpp"
 #include "common/QLogging.hpp"
 #include "messages/Emote.hpp"
 #include "messages/Image.hpp"
@@ -35,7 +34,7 @@ namespace {
     {
         auto url1x = getEmoteLink(urls, "1");
         auto url2x = getEmoteLink(urls, "2");
-        auto url3x = getEmoteLink(urls, "3");
+        auto url3x = getEmoteLink(urls, "4");
 
         //, code, tooltip
         emoteData.name = name;
@@ -44,7 +43,7 @@ namespace {
                      url2x.string.isEmpty() ? Image::getEmpty()
                                             : Image::fromUrl(url2x, 0.5),
                      url3x.string.isEmpty() ? Image::getEmpty()
-                                            : Image::fromUrl(url3x, 0.250)};
+                                            : Image::fromUrl(url3x, 0.25)};
         emoteData.tooltip = {tooltip};
     }
 
@@ -119,10 +118,10 @@ namespace {
         return emotes;
     }
 
-    boost::optional<EmotePtr> parseAuthorityBadge(const QJsonObject &badgeUrls,
-                                                  const QString &tooltip)
+    std::optional<EmotePtr> parseAuthorityBadge(const QJsonObject &badgeUrls,
+                                                const QString &tooltip)
     {
-        boost::optional<EmotePtr> authorityBadge;
+        std::optional<EmotePtr> authorityBadge;
 
         if (!badgeUrls.isEmpty())
         {
@@ -150,18 +149,21 @@ namespace {
         return authorityBadge;
     }
 
-    EmoteMap parseChannelEmotes(const QJsonObject &jsonRoot)
-    {
-        auto emotes = EmoteMap();
-
-        for (const auto emoteSetRef : jsonRoot["sets"].toObject())
-        {
-            parseEmoteSetInto(emoteSetRef.toObject(), "Channel", emotes);
-        }
-
-        return emotes;
-    }
 }  // namespace
+
+using namespace ffz::detail;
+
+EmoteMap ffz::detail::parseChannelEmotes(const QJsonObject &jsonRoot)
+{
+    auto emotes = EmoteMap();
+
+    for (const auto emoteSetRef : jsonRoot["sets"].toObject())
+    {
+        parseEmoteSetInto(emoteSetRef.toObject(), "Channel", emotes);
+    }
+
+    return emotes;
+}
 
 FfzEmotes::FfzEmotes()
     : global_(std::make_shared<EmoteMap>())
@@ -173,7 +175,7 @@ std::shared_ptr<const EmoteMap> FfzEmotes::emotes() const
     return this->global_.get();
 }
 
-boost::optional<EmotePtr> FfzEmotes::emote(const EmoteName &name) const
+std::optional<EmotePtr> FfzEmotes::emote(const EmoteName &name) const
 {
     auto emotes = this->global_.get();
     auto it = emotes->find(name);
@@ -181,14 +183,14 @@ boost::optional<EmotePtr> FfzEmotes::emote(const EmoteName &name) const
     {
         return it->second;
     }
-    return boost::none;
+    return std::nullopt;
 }
 
 void FfzEmotes::loadEmotes()
 {
     if (!Settings::instance().enableFFZGlobalEmotes)
     {
-        this->global_.set(EMPTY_EMOTE_MAP);
+        this->setEmotes(EMPTY_EMOTE_MAP);
         return;
     }
 
@@ -197,20 +199,23 @@ void FfzEmotes::loadEmotes()
     NetworkRequest(url)
 
         .timeout(30000)
-        .onSuccess([this](auto result) -> Outcome {
+        .onSuccess([this](auto result) {
             auto parsedSet = parseGlobalEmotes(result.parseJson());
-            this->global_.set(std::make_shared<EmoteMap>(std::move(parsedSet)));
-
-            return Success;
+            this->setEmotes(std::make_shared<EmoteMap>(std::move(parsedSet)));
         })
         .execute();
+}
+
+void FfzEmotes::setEmotes(std::shared_ptr<const EmoteMap> emotes)
+{
+    this->global_.set(std::move(emotes));
 }
 
 void FfzEmotes::loadChannel(
     std::weak_ptr<Channel> channel, const QString &channelID,
     std::function<void(EmoteMap &&)> emoteCallback,
-    std::function<void(boost::optional<EmotePtr>)> modBadgeCallback,
-    std::function<void(boost::optional<EmotePtr>)> vipBadgeCallback,
+    std::function<void(std::optional<EmotePtr>)> modBadgeCallback,
+    std::function<void(std::optional<EmotePtr>)> vipBadgeCallback,
     bool manualRefresh)
 {
     qCDebug(chatterinoFfzemotes)
@@ -222,7 +227,7 @@ void FfzEmotes::loadChannel(
         .onSuccess([emoteCallback = std::move(emoteCallback),
                     modBadgeCallback = std::move(modBadgeCallback),
                     vipBadgeCallback = std::move(vipBadgeCallback), channel,
-                    manualRefresh](const auto &result) -> Outcome {
+                    manualRefresh](const auto &result) {
             const auto json = result.parseJson();
 
             auto emoteMap = parseChannelEmotes(json);
@@ -249,8 +254,6 @@ void FfzEmotes::loadChannel(
                         makeSystemMessage(CHANNEL_HAS_NO_EMOTES));
                 }
             }
-
-            return Success;
         })
         .onError([channelID, channel, manualRefresh](const auto &result) {
             auto shared = channel.lock();
@@ -268,24 +271,17 @@ void FfzEmotes::loadChannel(
                         makeSystemMessage(CHANNEL_HAS_NO_EMOTES));
                 }
             }
-            else if (result.status() == NetworkResult::timedoutStatus)
-            {
-                // TODO: Auto retry in case of a timeout, with a delay
-                qCWarning(chatterinoFfzemotes)
-                    << "Fetching FFZ emotes for channel" << channelID
-                    << "failed due to timeout";
-                shared->addMessage(
-                    makeSystemMessage("Failed to fetch FrankerFaceZ channel "
-                                      "emotes. (timed out)"));
-            }
             else
             {
+                // TODO: Auto retry in case of a timeout, with a delay
+                auto errorString = result.formatError();
                 qCWarning(chatterinoFfzemotes)
                     << "Error fetching FFZ emotes for channel" << channelID
-                    << ", error" << result.status();
-                shared->addMessage(
-                    makeSystemMessage("Failed to fetch FrankerFaceZ channel "
-                                      "emotes. (unknown error)"));
+                    << ", error" << errorString;
+                shared->addMessage(makeSystemMessage(
+                    QStringLiteral("Failed to fetch FrankerFaceZ channel "
+                                   "emotes. (Error: %1)")
+                        .arg(errorString)));
             }
         })
         .execute();

@@ -4,11 +4,11 @@
 #include "common/Modes.hpp"
 #include "common/QLogging.hpp"
 #include "common/Version.hpp"
-#include "providers/Crashpad.hpp"
 #include "providers/IvrApi.hpp"
 #include "providers/NetworkConfigurationProvider.hpp"
 #include "providers/twitch/api/Helix.hpp"
 #include "RunGui.hpp"
+#include "singletons/CrashHandler.hpp"
 #include "singletons/Paths.hpp"
 #include "singletons/Settings.hpp"
 #include "util/AttachToConsole.hpp"
@@ -24,6 +24,11 @@ using namespace chatterino;
 
 int main(int argc, char **argv)
 {
+    // TODO: This is a temporary fix (see #4552).
+#if defined(Q_OS_WINDOWS) && QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    qputenv("QT_ENABLE_HIGHDPI_SCALING", "0");
+#endif
+
     QApplication a(argc, argv);
 
     QCoreApplication::setApplicationName("chatterino");
@@ -57,18 +62,18 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    initArgs(a);
+    const Args args(a);
 
 #ifdef CHATTERINO_WITH_CRASHPAD
-    const auto crashpadHandler = installCrashHandler();
+    const auto crashpadHandler = installCrashHandler(args);
 #endif
 
     // run in gui mode or browser extension host mode
-    if (getArgs().shouldRunBrowserExtensionHost)
+    if (args.shouldRunBrowserExtensionHost)
     {
         runBrowserExtensionHost();
     }
-    else if (getArgs().printVersion)
+    else if (args.printVersion)
     {
         attachToConsole();
 
@@ -82,7 +87,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        if (getArgs().verbose)
+        if (args.verbose)
         {
             attachToConsole();
         }
@@ -94,7 +99,7 @@ int main(int argc, char **argv)
 
         Settings settings(paths->settingsDirectory);
 
-        runGui(a, *paths, settings);
+        runGui(a, *paths, settings, args);
     }
     return 0;
 }

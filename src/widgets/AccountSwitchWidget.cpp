@@ -11,7 +11,7 @@ namespace chatterino {
 AccountSwitchWidget::AccountSwitchWidget(QWidget *parent)
     : QListWidget(parent)
 {
-    auto app = getApp();
+    auto *app = getApp();
 
     this->addItem(ANONYMOUS_USERNAME_LABEL);
 
@@ -20,22 +20,23 @@ AccountSwitchWidget::AccountSwitchWidget(QWidget *parent)
         this->addItem(userName);
     }
 
-    app->accounts->twitch.userListUpdated.connect([=, this]() {
-        this->blockSignals(true);
+    this->managedConnections_.managedConnect(
+        app->accounts->twitch.userListUpdated, [=, this]() {
+            this->blockSignals(true);
 
-        this->clear();
+            this->clear();
 
-        this->addItem(ANONYMOUS_USERNAME_LABEL);
+            this->addItem(ANONYMOUS_USERNAME_LABEL);
 
-        for (const auto &userName : app->accounts->twitch.getUsernames())
-        {
-            this->addItem(userName);
-        }
+            for (const auto &userName : app->accounts->twitch.getUsernames())
+            {
+                this->addItem(userName);
+            }
 
-        this->refreshSelection();
+            this->refreshSelection();
 
-        this->blockSignals(false);
-    });
+            this->blockSignals(false);
+        });
 
     this->refreshSelection();
 
@@ -68,7 +69,7 @@ void AccountSwitchWidget::refreshSelection()
     // Select the currently logged in user
     if (this->count() > 0)
     {
-        auto app = getApp();
+        auto *app = getApp();
 
         auto currentUser = app->accounts->twitch.getCurrent();
 

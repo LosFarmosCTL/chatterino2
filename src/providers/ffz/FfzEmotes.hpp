@@ -3,9 +3,10 @@
 #include "common/Aliases.hpp"
 #include "common/Atomic.hpp"
 
-#include <boost/optional.hpp>
+#include <QJsonObject>
 
 #include <memory>
+#include <optional>
 
 namespace chatterino {
 
@@ -14,19 +15,26 @@ using EmotePtr = std::shared_ptr<const Emote>;
 class EmoteMap;
 class Channel;
 
+namespace ffz::detail {
+
+    EmoteMap parseChannelEmotes(const QJsonObject &jsonRoot);
+
+}  // namespace ffz::detail
+
 class FfzEmotes final
 {
 public:
     FfzEmotes();
 
     std::shared_ptr<const EmoteMap> emotes() const;
-    boost::optional<EmotePtr> emote(const EmoteName &name) const;
+    std::optional<EmotePtr> emote(const EmoteName &name) const;
     void loadEmotes();
+    void setEmotes(std::shared_ptr<const EmoteMap> emotes);
     static void loadChannel(
         std::weak_ptr<Channel> channel, const QString &channelId,
         std::function<void(EmoteMap &&)> emoteCallback,
-        std::function<void(boost::optional<EmotePtr>)> modBadgeCallback,
-        std::function<void(boost::optional<EmotePtr>)> vipBadgeCallback,
+        std::function<void(std::optional<EmotePtr>)> modBadgeCallback,
+        std::function<void(std::optional<EmotePtr>)> vipBadgeCallback,
         bool manualRefresh);
 
 private:

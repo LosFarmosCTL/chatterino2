@@ -5,14 +5,11 @@
 #include "messages/LimitedQueueSnapshot.hpp"
 #include "messages/Message.hpp"
 #include "messages/MessageBuilder.hpp"
+#include "providers/twitch/TwitchChannel.hpp"
 
 #include <QCoreApplication>
 
 namespace chatterino {
-
-const int RECONNECT_BASE_INTERVAL = 2000;
-// 60 falloff counter means it will try to reconnect at most every 60*2 seconds
-const int MAX_FALLOFF_COUNTER = 60;
 
 // Ratelimits for joinBucket_
 const int JOIN_RATELIMIT_BUDGET = 18;
@@ -32,18 +29,7 @@ AbstractIrcServer::AbstractIrcServer()
         {
             return;
         }
-        if (message.size() == 0)
-        {
-            return;
-        }
-        if (message.at(0) == '$')
-        {
-            this->readConnection_->sendRaw("JOIN " + message.mid(1));
-        }
-        else
-        {
-            this->readConnection_->sendRaw("JOIN #" + message);
-        }
+        this->readConnection_->sendRaw("JOIN #" + message);
     };
     this->joinBucket_.reset(new RatelimitBucket(
         JOIN_RATELIMIT_BUDGET, JOIN_RATELIMIT_COOLDOWN, actuallyJoin, this));
@@ -61,7 +47,7 @@ AbstractIrcServer::AbstractIrcServer()
         this->writeConnection_->connectionLost, [this](bool timeout) {
             qCDebug(chatterinoIrc)
                 << "Write connection reconnect requested. Timeout:" << timeout;
-            this->writeConnection_->smartReconnect.invoke();
+            this->writeConnection_->smartReconnect();
         });
 
     // Listen to read connection message signals
@@ -97,8 +83,11 @@ AbstractIrcServer::AbstractIrcServer()
                 this->addGlobalSystemMessage(
                     "Server connection timed out, reconnecting");
             }
-            this->readConnection_->smartReconnect.invoke();
+            this->readConnection_->smartReconnect();
         });
+    this->connections_.managedConnect(this->readConnection_->heartbeat, [this] {
+        this->markChannelsConnected();
+    });
 }
 
 void AbstractIrcServer::initializeIrc()
@@ -238,18 +227,7 @@ ChannelPtr AbstractIrcServer::getOrAddChannel(const QString &dirtyChannelName)
 
         if (this->readConnection_)
         {
-            if (channelName.size() == 0)
-            {
-                return;
-            }
-            if (channelName.at(0) == '$')
-            {
-                this->readConnection_->sendRaw("PART " + channelName.mid(1));
-            }
-            else
-            {
-                this->readConnection_->sendRaw("PART #" + channelName);
-            }
+            this->readConnection_->sendRaw("PART #" + channelName);
         }
     });
 
@@ -353,8 +331,6 @@ void AbstractIrcServer::onReadConnected(IrcConnection *connection)
         {
             chan->addMessage(connectedMsg);
         }
-
-        chan->connected.invoke();
     }
 
     this->falloffCounter_ = 1;
@@ -382,7 +358,22 @@ void AbstractIrcServer::onDisconnected()
         }
 
         chan->addMessage(disconnectedMsg);
+
+        if (auto *channel = dynamic_cast<TwitchChannel *>(chan.get()))
+        {
+            channel->markDisconnected();
+        }
     }
+}
+
+void AbstractIrcServer::markChannelsConnected()
+{
+    this->forEachChannel([](const ChannelPtr &chan) {
+        if (auto *channel = dynamic_cast<TwitchChannel *>(chan.get()))
+        {
+            channel->markConnected();
+        }
+    });
 }
 
 std::shared_ptr<Channel> AbstractIrcServer::getCustomChannel(
@@ -400,7 +391,7 @@ QString AbstractIrcServer::cleanChannelName(const QString &dirtyChannelName)
 
 void AbstractIrcServer::addFakeMessage(const QString &data)
 {
-    auto fakeMessage = Communi::IrcMessage::fromData(
+    auto *fakeMessage = Communi::IrcMessage::fromData(
         data.toUtf8(), this->readConnection_.get());
 
     if (fakeMessage->command() == "PRIVMSG")
